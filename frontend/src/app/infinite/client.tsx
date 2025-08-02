@@ -94,11 +94,6 @@ export function Client() {
       // FIXME: make it configurable - TODO: use `columnHidden: boolean` in `filterFields`
       defaultColumnVisibility={{
         uuid: false,
-        "timing.dns": false,
-        "timing.connection": false,
-        "timing.tls": false,
-        "timing.ttfb": false,
-        "timing.transfer": false,
       }}
       meta={metadata}
       filterFields={filterFields}
@@ -110,9 +105,9 @@ export function Client() {
       fetchPreviousPage={fetchPreviousPage}
       refetch={refetch}
       chartData={chartData}
-      chartDataColumnId="date"
+      chartDataColumnId="timestamp"
       getRowClassName={(row) => {
-        const rowTimestamp = row.original.date.getTime();
+        const rowTimestamp = row.original.timestamp.getTime();
         const isPast = rowTimestamp <= (liveMode.timestamp || -1);
         const levelClassName = getLevelRowClassName(row.original.level);
         return cn(levelClassName, isPast ? "opacity-50" : "opacity-100");
@@ -125,7 +120,7 @@ export function Client() {
         if (props?.row.original.uuid !== liveMode?.row?.uuid) return null;
         return <LiveRow />;
       }}
-      renderSheetTitle={(props) => props.row?.original.pathname}
+      renderSheetTitle={(props) => props.row?.original.message}
       searchParamsParser={searchParamsParser}
     />
   );
@@ -143,7 +138,7 @@ function useResetFocus() {
 }
 
 // TODO: make a BaseObject (incl. date and uuid e.g. for every upcoming branch of infinite table)
-export function useLiveMode<TData extends { date: Date }>(data: TData[]) {
+export function useLiveMode<TData extends { timestamp: Date }>(data: TData[]) {
   const [live] = useQueryState("live", searchParamsParser.live);
   // REMINDER: used to capture the live mode on timestamp
   const liveTimestamp = React.useRef<number | undefined>(
@@ -162,7 +157,7 @@ export function useLiveMode<TData extends { date: Date }>(data: TData[]) {
       // return first item that is there if not liveTimestamp
       if (!liveTimestamp.current) return true;
       // return first item that is after the liveTimestamp
-      if (item.date.getTime() > liveTimestamp.current) return false;
+      if (item.timestamp.getTime() > liveTimestamp.current) return false;
       return true;
       // return first item if no liveTimestamp
     });

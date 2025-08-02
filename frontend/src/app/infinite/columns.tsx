@@ -2,34 +2,18 @@
 
 import { TextWithTooltip } from "@/components/custom/text-with-tooltip";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { DataTableColumnLatency } from "@/components/data-table/data-table-column/data-table-column-latency";
 import { DataTableColumnLevelIndicator } from "@/components/data-table/data-table-column/data-table-column-level-indicator";
-import { DataTableColumnRegion } from "@/components/data-table/data-table-column/data-table-column-region";
-import { DataTableColumnStatusCode } from "@/components/data-table/data-table-column/data-table-column-status-code";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
-  getTimingColor,
-  getTimingLabel,
-  getTimingPercentage,
-  timingPhases,
-} from "@/lib/request/timing";
 import { cn } from "@/lib/utils";
-import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Minus } from "lucide-react";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
-import type { ColumnSchema } from "./schema";
+import type { SyslogSchema } from "./schema";
 
-export const columns: ColumnDef<ColumnSchema>[] = [
+export const columns: ColumnDef<SyslogSchema>[] = [
   {
     accessorKey: "level",
     header: "",
     cell: ({ row }) => {
-      const level = row.getValue<ColumnSchema["level"]>("level");
+      const level = row.getValue<SyslogSchema["level"]>("level");
       return <DataTableColumnLevelIndicator value={level} />;
     },
     enableHiding: false,
@@ -46,12 +30,12 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     },
   },
   {
-    accessorKey: "date",
+    accessorKey: "timestamp",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Date" />
+      <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue<ColumnSchema["date"]>("date"));
+      const date = new Date(row.getValue<SyslogSchema["timestamp"]>("timestamp"));
       return <HoverCardTimestamp date={date} />;
     },
     filterFn: "inDateRange",
@@ -60,23 +44,23 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 200,
     meta: {
       headerClassName:
-        "w-[--header-date-size] max-w-[--header-date-size] min-w-[--header-date-size]",
+        "w-[--header-timestamp-size] max-w-[--header-timestamp-size] min-w-[--header-timestamp-size]",
       cellClassName:
-        "font-mono w-[--col-date-size] max-w-[--col-date-size] min-w-[--col-date-size]",
+        "font-mono w-[--col-timestamp-size] max-w-[--col-timestamp-size] min-w-[--col-timestamp-size]",
     },
   },
   {
     id: "uuid",
     accessorKey: "uuid",
-    header: "Request Id",
+    header: "Message ID",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["uuid"]>("uuid");
+      const value = row.getValue<SyslogSchema["uuid"]>("uuid");
       return <TextWithTooltip text={value} />;
     },
     size: 130,
     minSize: 130,
     meta: {
-      label: "Request Id",
+      label: "Message ID",
       cellClassName:
         "font-mono w-[--col-uuid-size] max-w-[--col-uuid-size] min-w-[--col-uuid-size]",
       headerClassName:
@@ -84,318 +68,153 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     },
   },
   {
-    accessorKey: "status",
-    header: "Status",
+    accessorKey: "priority",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Priority" />
+    ),
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["status"]>("status");
-      return <DataTableColumnStatusCode value={value} />;
+      const priority = row.getValue<SyslogSchema["priority"]>("priority");
+      const facility = row.getValue<SyslogSchema["facility"]>("facility");
+      const severity = row.getValue<SyslogSchema["severity"]>("severity");
+      return (
+        <div className="flex flex-col">
+          <span className="font-mono text-sm">{priority}</span>
+          <span className="text-xs text-muted-foreground">
+            F{facility}.S{severity}
+          </span>
+        </div>
+      );
     },
-    filterFn: "arrSome",
+    filterFn: "inNumberRange",
+    enableResizing: false,
+    size: 80,
+    minSize: 80,
+    meta: {
+      headerClassName:
+        "w-[--header-priority-size] max-w-[--header-priority-size] min-w-[--header-priority-size]",
+      cellClassName:
+        "font-mono w-[--col-priority-size] max-w-[--col-priority-size] min-w-[--col-priority-size]",
+    },
+  },
+  {
+    accessorKey: "version",
+    header: "Version",
+    cell: ({ row }) => {
+      const value = row.getValue<SyslogSchema["version"]>("version");
+      return <span className="font-mono">{value}</span>;
+    },
+    filterFn: "arrIncludesSome",
     enableResizing: false,
     size: 60,
     minSize: 60,
     meta: {
-      headerClassName:
-        "w-[--header-status-size] max-w-[--header-status-size] min-w-[--header-status-size]",
       cellClassName:
-        "font-mono w-[--col-status-size] max-w-[--col-status-size] min-w-[--col-status-size]",
+        "font-mono text-muted-foreground w-[--col-version-size] max-w-[--col-version-size] min-w-[--col-version-size]",
+      headerClassName:
+        "w-[--header-version-size] max-w-[--header-version-size] min-w-[--header-version-size]",
     },
   },
   {
-    // TODO: make it a type of MethodSchema!
-    accessorKey: "method",
-    header: "Method",
-    filterFn: "arrIncludesSome",
-    enableResizing: false,
-    size: 69,
-    minSize: 69,
-    meta: {
-      cellClassName:
-        "font-mono text-muted-foreground w-[--col-method-size] max-w-[--col-method-size] min-w-[--col-method-size]",
-      headerClassName:
-        "w-[--header-method-size] max-w-[--header-method-size] min-w-[--header-method-size]",
-    },
-  },
-  {
-    accessorKey: "host",
-    header: "Host",
+    accessorKey: "hostname",
+    header: "Hostname",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["host"]>("host");
+      const value = row.getValue<SyslogSchema["hostname"]>("hostname");
       return <TextWithTooltip text={value} />;
     },
     size: 125,
     minSize: 125,
     meta: {
-      cellClassName: "font-mono w-[--col-host-size] max-w-[--col-host-size]",
-      headerClassName: "min-w-[--header-host-size] w-[--header-host-size]",
+      cellClassName: "font-mono w-[--col-hostname-size] max-w-[--col-hostname-size]",
+      headerClassName: "min-w-[--header-hostname-size] w-[--header-hostname-size]",
     },
   },
   {
-    accessorKey: "pathname",
-    header: "Pathname",
+    accessorKey: "appName",
+    header: "App Name",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["pathname"]>("pathname");
+      const value = row.getValue<SyslogSchema["appName"]>("appName");
       return <TextWithTooltip text={value} />;
     },
-    size: 130,
-    minSize: 130,
+    size: 100,
+    minSize: 100,
     meta: {
       cellClassName:
-        "font-mono w-[--col-pathname-size] max-w-[--col-pathname-size]",
+        "font-mono w-[--col-appname-size] max-w-[--col-appname-size]",
       headerClassName:
-        "min-w-[--header-pathname-size] w-[--header-pathname-size]",
+        "min-w-[--header-appname-size] w-[--header-appname-size]",
     },
   },
   {
-    accessorKey: "latency",
-    // TODO: check if we can right align the table header/cell (makes is easier to read)
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Latency" />
-    ),
+    accessorKey: "procId",
+    header: "Proc ID",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["latency"]>("latency");
-      return <DataTableColumnLatency value={value} />;
+      const value = row.getValue<SyslogSchema["procId"]>("procId");
+      return <span className="font-mono">{value}</span>;
     },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 110,
-    minSize: 110,
+    size: 80,
+    minSize: 80,
     meta: {
-      headerClassName:
-        "w-[--header-latency-size] max-w-[--header-latency-size] min-w-[--header-latency-size]",
       cellClassName:
-        "font-mono w-[--col-latency-size] max-w-[--col-latency-size] min-w-[--col-latency-size]",
+        "font-mono w-[--col-procid-size] max-w-[--col-procid-size]",
+      headerClassName:
+        "min-w-[--header-procid-size] w-[--header-procid-size]",
     },
   },
   {
-    accessorKey: "regions",
-    header: "Region",
+    accessorKey: "msgId",
+    header: "Msg ID",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["regions"]>("regions");
-      if (Array.isArray(value)) {
-        if (value.length > 1) {
-          return (
-            <div className="text-muted-foreground">{value.join(", ")}</div>
-          );
-        } else {
-          return (
-            <div className="whitespace-nowrap">
-              <DataTableColumnRegion value={value[0]} />
-            </div>
-          );
-        }
+      const value = row.getValue<SyslogSchema["msgId"]>("msgId");
+      return <span className="font-mono">{value}</span>;
+    },
+    size: 80,
+    minSize: 80,
+    meta: {
+      cellClassName:
+        "font-mono w-[--col-msgid-size] max-w-[--col-msgid-size]",
+      headerClassName:
+        "min-w-[--header-msgid-size] w-[--header-msgid-size]",
+    },
+  },
+  {
+    accessorKey: "structuredData",
+    header: "Structured Data",
+    cell: ({ row }) => {
+      const value = row.getValue<SyslogSchema["structuredData"]>("structuredData");
+      if (!value || Object.keys(value).length === 0) {
+        return <span className="text-muted-foreground">-</span>;
       }
-      if (typeof value === "string") {
-        return <DataTableColumnRegion value={value} />;
-      }
-      return <Minus className="h-4 w-4 text-muted-foreground/50" />;
-    },
-    filterFn: "arrIncludesSome",
-    enableResizing: false,
-    size: 163,
-    minSize: 163,
-    meta: {
-      headerClassName:
-        "w-[--header-regions-size] max-w-[--header-regions-size] min-w-[--header-regions-size]",
-      cellClassName:
-        "font-mono w-[--col-regions-size] max-w-[--col-regions-size] min-w-[--col-regions-size]",
-    },
-  },
-  {
-    accessorKey: "timing",
-    header: () => <div className="whitespace-nowrap">Timing Phases</div>,
-    cell: ({ row }) => {
-      const timing = {
-        "timing.dns": row.getValue<ColumnSchema["timing.dns"]>("timing.dns"),
-        "timing.connection":
-          row.getValue<ColumnSchema["timing.connection"]>("timing.connection"),
-        "timing.tls": row.getValue<ColumnSchema["timing.tls"]>("timing.tls"),
-        "timing.ttfb": row.getValue<ColumnSchema["timing.ttfb"]>("timing.ttfb"),
-        "timing.transfer":
-          row.getValue<ColumnSchema["timing.transfer"]>("timing.transfer"),
-      };
-      const latency = row.getValue<ColumnSchema["latency"]>("latency");
-      const percentage = getTimingPercentage(timing, latency);
-      // TODO: create a separate component for this in _components
       return (
-        <HoverCard openDelay={50} closeDelay={50}>
-          <HoverCardTrigger
-            className="opacity-70 hover:opacity-100 data-[state=open]:opacity-100"
-            asChild
-          >
-            <div className="flex">
-              {Object.entries(timing).map(([key, value]) => (
-                <div
-                  key={key}
-                  className={cn(
-                    getTimingColor(key as keyof typeof timing),
-                    "h-4",
-                  )}
-                  style={{ width: `${(value / latency) * 100}%` }}
-                />
-              ))}
-            </div>
-          </HoverCardTrigger>
-          {/* REMINDER: allows us to port the content to the document.body, which is helpful when using opacity-50 on the row element */}
-          <HoverCardPortal>
-            <HoverCardContent
-              side="bottom"
-              align="end"
-              className="z-10 w-auto p-2"
-            >
-              <div className="flex flex-col gap-1">
-                {timingPhases.map((phase) => {
-                  const color = getTimingColor(phase);
-                  const percentageValue = percentage[phase];
-                  return (
-                    <div key={phase} className="grid grid-cols-2 gap-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className={cn(color, "h-2 w-2 rounded-full")} />
-                        <div className="font-mono uppercase text-accent-foreground">
-                          {getTimingLabel(phase)}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="font-mono text-muted-foreground">
-                          {percentageValue}
-                        </div>
-                        <div className="font-mono">
-                          {new Intl.NumberFormat("en-US", {
-                            maximumFractionDigits: 3,
-                          }).format(timing[phase])}
-                          <span className="text-muted-foreground">ms</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </HoverCardContent>
-          </HoverCardPortal>
-        </HoverCard>
+        <TextWithTooltip 
+          text={Object.entries(value)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(", ")} 
+        />
       );
     },
-    enableResizing: false,
-    size: 130,
-    minSize: 130,
+    size: 150,
+    minSize: 150,
     meta: {
-      label: "Timing Phases",
-      headerClassName:
-        "w-[--header-timing-size] max-w-[--header-timing-size] min-w-[--header-timing-size]",
       cellClassName:
-        "font-mono w-[--col-timing-size] max-w-[--col-timing-size] min-w-[--col-timing-size]",
+        "font-mono w-[--col-structureddata-size] max-w-[--col-structureddata-size]",
+      headerClassName:
+        "min-w-[--header-structureddata-size] w-[--header-structureddata-size]",
     },
   },
   {
-    id: "timing.dns",
-    accessorFn: (row) => row["timing.dns"],
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="DNS" />
-    ),
+    accessorKey: "message",
+    header: "Message",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["timing.dns"]>("timing.dns");
-      return <DataTableColumnLatency value={value} />;
+      const value = row.getValue<SyslogSchema["message"]>("message");
+      return <TextWithTooltip text={value} />;
     },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 110,
-    minSize: 110,
+    size: 300,
+    minSize: 200,
     meta: {
-      label: "DNS",
-      headerClassName:
-        "w-[--header-timing-dns-size] max-w-[--header-timing-dns-size] min-w-[--header-timing-dns-size]",
       cellClassName:
-        "font-mono w-[--col-timing-dns-size] max-w-[--col-timing-dns-size] min-w-[--col-timing-dns-size]",
-    },
-  },
-  {
-    id: "timing.connection",
-    accessorFn: (row) => row["timing.connection"],
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Connection" />
-    ),
-    cell: ({ row }) => {
-      const value =
-        row.getValue<ColumnSchema["timing.connection"]>("timing.connection");
-      return <DataTableColumnLatency value={value} />;
-    },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 110,
-    minSize: 110,
-    meta: {
-      label: "Connection",
+        "font-mono w-[--col-message-size] max-w-[--col-message-size]",
       headerClassName:
-        "w-[--header-timing-connection-size] max-w-[--header-timing-connection-size] min-w-[--header-timing-connection-size]",
-      cellClassName:
-        "font-mono w-[--col-timing-connection-size] max-w-[--col-timing-connection-size] min-w-[--col-timing-connection-size]",
-    },
-  },
-  {
-    id: "timing.tls",
-    accessorFn: (row) => row["timing.tls"],
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="TLS" />
-    ),
-    cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["timing.tls"]>("timing.tls");
-      return <DataTableColumnLatency value={value} />;
-    },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 110,
-    minSize: 110,
-    meta: {
-      label: "TLS",
-      headerClassName:
-        "w-[--header-timing-tls-size] max-w-[--header-timing-tls-size] min-w-[--header-timing-tls-size]",
-      cellClassName:
-        "font-mono w-[--col-timing-tls-size] max-w-[--col-timing-tls-size] min-w-[--col-timing-tls-size]",
-    },
-  },
-  {
-    id: "timing.ttfb",
-    accessorFn: (row) => row["timing.ttfb"],
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="TTFB" />
-    ),
-    cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["timing.ttfb"]>("timing.ttfb");
-      return <DataTableColumnLatency value={value} />;
-    },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 110,
-    minSize: 110,
-    meta: {
-      label: "TTFB",
-      headerClassName:
-        "w-[--header-timing-ttfb-size] max-w-[--header-timing-ttfb-size] min-w-[--header-timing-ttfb-size]",
-      cellClassName:
-        "font-mono w-[--col-timing-ttfb-size] max-w-[--col-timing-ttfb-size] min-w-[--col-timing-ttfb-size]",
-    },
-  },
-  {
-    id: "timing.transfer",
-    accessorFn: (row) => row["timing.transfer"],
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Transfer" />
-    ),
-    cell: ({ row }) => {
-      const value =
-        row.getValue<ColumnSchema["timing.transfer"]>("timing.transfer");
-      return <DataTableColumnLatency value={value} />;
-    },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 110,
-    minSize: 110,
-    meta: {
-      label: "Transfer",
-      headerClassName:
-        "w-[--header-timing-transfer-size] max-w-[--header-timing-transfer-size] min-w-[--header-timing-transfer-size]",
-      cellClassName:
-        "font-mono w-[--col-timing-transfer-size] max-w-[--col-timing-transfer-size] min-w-[--col-timing-transfer-size]",
+        "min-w-[--header-message-size] w-[--header-message-size]",
     },
   },
 ];

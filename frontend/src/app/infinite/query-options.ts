@@ -3,12 +3,12 @@ import { infiniteQueryOptions, keepPreviousData } from "@tanstack/react-query";
 import SuperJSON from "superjson";
 import type {
   BaseChartSchema,
-  ColumnSchema,
+  SyslogSchema,
   FacetMetadataSchema,
 } from "./schema";
 import { searchParamsSerializer, type SearchParamsType } from "./search-params";
 
-export type LogsMeta = {
+export type SyslogMeta = {
   currentPercentiles: Record<Percentile, number>;
 };
 
@@ -45,7 +45,7 @@ export const dataOptions = (search: SearchParamsType) => {
       });
       const response = await fetch(`/infinite/api${serialize}`);
       const json = await response.json();
-      return SuperJSON.parse<InfiniteQueryResponse<ColumnSchema[], LogsMeta>>(
+      return SuperJSON.parse<InfiniteQueryResponse<SyslogSchema[], SyslogMeta>>(
         json,
       );
     },

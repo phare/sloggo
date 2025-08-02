@@ -3,10 +3,8 @@ import {
   RANGE_DELIMITER,
   SLIDER_DELIMITER,
 } from "@/lib/delimiters";
-import { METHODS } from "@/constants/method";
-import { REGIONS } from "@/constants/region";
-import { z } from "zod";
 import { LEVELS } from "@/constants/levels";
+import { z } from "zod";
 
 // https://github.com/colinhacks/zod/issues/2985#issue-2008642190
 const stringToBoolean = z
@@ -22,87 +20,51 @@ const stringToBoolean = z
   })
   .pipe(z.boolean().optional());
 
-export const timingSchema = z.object({
-  "timing.dns": z.number(),
-  "timing.connection": z.number(),
-  "timing.tls": z.number(),
-  "timing.ttfb": z.number(),
-  "timing.transfer": z.number(),
+// RFC 5424 Syslog Schema
+export const syslogSchema = z.object({
+  uuid: z.string(),
+  priority: z.number().min(0).max(191), // PRI = facility * 8 + severity
+  version: z.number().min(1).max(2), // Version of syslog protocol
+  timestamp: z.date(),
+  hostname: z.string(),
+  appName: z.string(),
+  procId: z.string(),
+  msgId: z.string(),
+  structuredData: z.record(z.string()).optional(),
+  message: z.string(),
+  level: z.enum(LEVELS), // Derived from priority severity
+  facility: z.number().min(0).max(23), // Derived from priority
+  severity: z.number().min(0).max(7), // Derived from priority
+  percentile: z.number().optional(), // Added by percentileData function
 });
 
-export const columnSchema = z
-  .object({
-    uuid: z.string(),
-    method: z.enum(METHODS),
-    host: z.string(),
-    pathname: z.string(),
-    level: z.enum(LEVELS),
-    latency: z.number(),
-    status: z.number(),
-    regions: z.enum(REGIONS).array(),
-    date: z.date(),
-    headers: z.record(z.string()),
-    message: z.string().optional(),
-    percentile: z.number().optional(),
-  })
-  .merge(timingSchema);
-
-export type ColumnSchema = z.infer<typeof columnSchema>;
-export type TimingSchema = z.infer<typeof timingSchema>;
+export type SyslogSchema = z.infer<typeof syslogSchema>;
 
 // TODO: can we get rid of this in favor of nuqs search-params?
-export const columnFilterSchema = z.object({
+export const syslogFilterSchema = z.object({
   level: z
     .string()
     .transform((val) => val.split(ARRAY_DELIMITER))
     .pipe(z.enum(LEVELS).array())
     .optional(),
-  method: z
-    .string()
-    .transform((val) => val.split(ARRAY_DELIMITER))
-    .pipe(z.enum(METHODS).array())
-    .optional(),
-  host: z.string().optional(),
-  pathname: z.string().optional(),
-  latency: z
-    .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
-    .optional(),
-  "timing.dns": z
-    .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
-    .optional(),
-  "timing.connection": z
-    .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
-    .optional(),
-  "timing.tls": z
-    .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
-    .optional(),
-  "timing.ttfb": z
-    .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
-    .optional(),
-  "timing.transfer": z
-    .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
-    .optional(),
-  status: z
+  hostname: z.string().optional(),
+  appName: z.string().optional(),
+  procId: z.string().optional(),
+  msgId: z.string().optional(),
+  facility: z
     .string()
     .transform((val) => val.split(ARRAY_DELIMITER))
     .pipe(z.coerce.number().array())
     .optional(),
-  regions: z
+  severity: z
     .string()
     .transform((val) => val.split(ARRAY_DELIMITER))
-    .pipe(z.enum(REGIONS).array())
+    .pipe(z.coerce.number().array())
+    .optional(),
+  priority: z
+    .string()
+    .transform((val) => val.split(SLIDER_DELIMITER))
+    .pipe(z.coerce.number().array().max(2))
     .optional(),
   date: z
     .string()
@@ -111,7 +73,7 @@ export const columnFilterSchema = z.object({
     .optional(),
 });
 
-export type ColumnFilterSchema = z.infer<typeof columnFilterSchema>;
+export type SyslogFilterSchema = z.infer<typeof syslogFilterSchema>;
 
 export const facetMetadataSchema = z.object({
   rows: z.array(z.object({ value: z.any(), total: z.number() })),
@@ -137,3 +99,7 @@ export const timelineChartSchema = z.object({
 }) satisfies z.ZodType<BaseChartSchema>;
 
 export type TimelineChartSchema = z.infer<typeof timelineChartSchema>;
+
+// Legacy type aliases for backward compatibility
+export type ColumnSchema = SyslogSchema;
+export type ColumnFilterSchema = SyslogFilterSchema;

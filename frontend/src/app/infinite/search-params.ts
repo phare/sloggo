@@ -17,11 +17,9 @@ import {
   SLIDER_DELIMITER,
   SORT_DELIMITER,
 } from "@/lib/delimiters";
-import { REGIONS } from "@/constants/region";
-import { METHODS } from "@/constants/method";
 import { LEVELS } from "@/constants/levels";
 
-// https://logs.run/i?sort=latency.desc
+// https://logs.run/i?sort=priority.desc
 
 export const parseAsSort = createParser({
   parse(queryValue) {
@@ -37,17 +35,13 @@ export const parseAsSort = createParser({
 export const searchParamsParser = {
   // CUSTOM FILTERS
   level: parseAsArrayOf(parseAsStringLiteral(LEVELS), ARRAY_DELIMITER),
-  latency: parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  "timing.dns": parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  "timing.connection": parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  "timing.tls": parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  "timing.ttfb": parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  "timing.transfer": parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  status: parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
-  regions: parseAsArrayOf(parseAsStringLiteral(REGIONS), ARRAY_DELIMITER),
-  method: parseAsArrayOf(parseAsStringLiteral(METHODS), ARRAY_DELIMITER),
-  host: parseAsString,
-  pathname: parseAsString,
+  priority: parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
+  facility: parseAsArrayOf(parseAsInteger, ARRAY_DELIMITER),
+  severity: parseAsArrayOf(parseAsInteger, ARRAY_DELIMITER),
+  hostname: parseAsString,
+  appName: parseAsString,
+  procId: parseAsString,
+  msgId: parseAsString,
   date: parseAsArrayOf(parseAsTimestamp, RANGE_DELIMITER),
   // REQUIRED FOR SORTING & PAGINATION
   sort: parseAsSort,

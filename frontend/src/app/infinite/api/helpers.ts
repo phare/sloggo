@@ -1,5 +1,4 @@
 import { LEVELS } from "@/constants/levels";
-import { REGIONS } from "@/constants/region";
 import { isArrayOfDates, isArrayOfNumbers } from "@/lib/is-array";
 import {
   calculatePercentile,
@@ -12,47 +11,38 @@ import {
   isSameDay,
 } from "date-fns";
 import type {
-  ColumnSchema,
+  SyslogSchema,
   FacetMetadataSchema,
   TimelineChartSchema,
 } from "../schema";
 import type { SearchParamsType } from "../search-params";
 
 export const sliderFilterValues = [
-  "latency",
-  "timing.dns",
-  "timing.connection",
-  "timing.tls",
-  "timing.ttfb",
-  "timing.transfer",
-] as const satisfies (keyof ColumnSchema)[];
+  "priority",
+] as const satisfies (keyof SyslogSchema)[];
 
 export const filterValues = [
   "level",
   ...sliderFilterValues,
-  "status",
-  "regions",
-  "method",
-  "host",
-  "pathname",
-] as const satisfies (keyof ColumnSchema)[];
+  "facility",
+  "severity",
+  "hostname",
+  "appName",
+  "procId",
+  "msgId",
+] as const satisfies (keyof SyslogSchema)[];
 
 export function filterData(
-  data: ColumnSchema[],
+  data: SyslogSchema[],
   search: Partial<SearchParamsType>,
-): ColumnSchema[] {
+): SyslogSchema[] {
   const { start, size, sort, ...filters } = search;
   return data.filter((row) => {
     for (const key in filters) {
       const filter = filters[key as keyof typeof filters];
       if (filter === undefined || filter === null) continue;
       if (
-        (key === "latency" ||
-          key === "timing.dns" ||
-          key === "timing.connection" ||
-          key === "timing.tls" ||
-          key === "timing.ttfb" ||
-          key === "timing.transfer") &&
+        (key === "priority") &&
         isArrayOfNumbers(filter)
       ) {
         if (filter.length === 1 && row[key] !== filter[0]) {
@@ -65,24 +55,23 @@ export function filterData(
         }
         return true;
       }
-      if (key === "status" && isArrayOfNumbers(filter)) {
+      if (key === "facility" && isArrayOfNumbers(filter)) {
         if (!filter.includes(row[key])) {
           return false;
         }
       }
-      if (key === "regions" && Array.isArray(filter)) {
-        const typedFilter = filter as unknown as typeof REGIONS;
-        if (!typedFilter.includes(row[key]?.[0])) {
+      if (key === "severity" && isArrayOfNumbers(filter)) {
+        if (!filter.includes(row[key])) {
           return false;
         }
       }
       if (key === "date" && isArrayOfDates(filter)) {
-        if (filter.length === 1 && !isSameDay(row[key], filter[0])) {
+        if (filter.length === 1 && !isSameDay(row.timestamp, filter[0])) {
           return false;
         } else if (
           filter.length === 2 &&
-          (row[key].getTime() < filter[0].getTime() ||
-            row[key].getTime() > filter[1].getTime())
+          (row.timestamp.getTime() < filter[0].getTime() ||
+            row.timestamp.getTime() > filter[1].getTime())
         ) {
           return false;
         }
@@ -93,12 +82,32 @@ export function filterData(
           return false;
         }
       }
+      if (key === "hostname" && typeof filter === "string") {
+        if (!row[key].toLowerCase().includes(filter.toLowerCase())) {
+          return false;
+        }
+      }
+      if (key === "appName" && typeof filter === "string") {
+        if (!row[key].toLowerCase().includes(filter.toLowerCase())) {
+          return false;
+        }
+      }
+      if (key === "procId" && typeof filter === "string") {
+        if (!row[key].toLowerCase().includes(filter.toLowerCase())) {
+          return false;
+        }
+      }
+      if (key === "msgId" && typeof filter === "string") {
+        if (!row[key].toLowerCase().includes(filter.toLowerCase())) {
+          return false;
+        }
+      }
     }
     return true;
   });
 }
 
-export function sortData(data: ColumnSchema[], sort: SearchParamsType["sort"]) {
+export function sortData(data: SyslogSchema[], sort: SearchParamsType["sort"]) {
   if (!sort) return data;
   return data.sort((a, b) => {
     if (sort.desc) {
@@ -111,37 +120,37 @@ export function sortData(data: ColumnSchema[], sort: SearchParamsType["sort"]) {
   });
 }
 
-export function percentileData(data: ColumnSchema[]): ColumnSchema[] {
-  const latencies = data.map((row) => row.latency);
+export function percentileData(data: SyslogSchema[]): SyslogSchema[] {
+  const priorities = data.map((row) => row.priority);
   return data.map((row) => ({
     ...row,
-    percentile: calculatePercentile(latencies, row.latency),
+    percentile: calculatePercentile(priorities, row.priority),
   }));
 }
 
-export function splitData(data: ColumnSchema[], search: SearchParamsType) {
-  let newData: ColumnSchema[] = [];
+export function splitData(data: SyslogSchema[], search: SearchParamsType) {
+  let newData: SyslogSchema[] = [];
   const now = new Date();
 
   // TODO: write a helper function for this
   data.forEach((item) => {
     if (search.direction === "next") {
       if (
-        item.date.getTime() < search.cursor.getTime() &&
+        item.timestamp.getTime() < search.cursor.getTime() &&
         newData.length < search.size
       ) {
         newData.push(item);
         // TODO: check how to deal with the cases that there are some items left with the same date
       } else if (
-        item.date.getTime() === newData[newData.length - 1]?.date.getTime()
+        item.timestamp.getTime() === newData[newData.length - 1]?.timestamp.getTime()
       ) {
         newData.push(item);
       }
     } else if (search.direction === "prev") {
       if (
-        item.date.getTime() > search.cursor.getTime() &&
+        item.timestamp.getTime() > search.cursor.getTime() &&
         // REMINDER: we need to make sure that we don't get items that are in the future which we do with mockLive data
-        item.date.getTime() < now.getTime()
+        item.timestamp.getTime() < now.getTime()
       ) {
         newData.push(item);
       }
@@ -151,12 +160,10 @@ export function splitData(data: ColumnSchema[], search: SearchParamsType) {
   return newData;
 }
 
-export function getFacetsFromData(data: ColumnSchema[]) {
+export function getFacetsFromData(data: SyslogSchema[]) {
   const valuesMap = data.reduce((prev, curr) => {
     Object.entries(curr).forEach(([key, value]) => {
       if (filterValues.includes(key as any)) {
-        // REMINDER: because regions is an array with a single value we need to convert to string
-        // TODO: we should make the region a single string instead of an array?!?
         const _value = Array.isArray(value) ? value.toString() : value;
         const total = prev.get(key)?.get(_value) || 0;
         if (prev.has(key) && _value) {
@@ -193,20 +200,20 @@ export function getFacetsFromData(data: ColumnSchema[]) {
   return facets satisfies Record<string, FacetMetadataSchema>;
 }
 
-export function getPercentileFromData(data: ColumnSchema[]) {
-  const latencies = data.map((row) => row.latency);
+export function getPercentileFromData(data: SyslogSchema[]) {
+  const priorities = data.map((row) => row.priority);
 
-  const p50 = calculateSpecificPercentile(latencies, 50);
-  const p75 = calculateSpecificPercentile(latencies, 75);
-  const p90 = calculateSpecificPercentile(latencies, 90);
-  const p95 = calculateSpecificPercentile(latencies, 95);
-  const p99 = calculateSpecificPercentile(latencies, 99);
+  const p50 = calculateSpecificPercentile(priorities, 50);
+  const p75 = calculateSpecificPercentile(priorities, 75);
+  const p90 = calculateSpecificPercentile(priorities, 90);
+  const p95 = calculateSpecificPercentile(priorities, 95);
+  const p99 = calculateSpecificPercentile(priorities, 99);
 
   return { p50, p75, p90, p95, p99 };
 }
 
 export function groupChartData(
-  data: ColumnSchema[],
+  data: SyslogSchema[],
   dates: Date[] | null,
 ): TimelineChartSchema[] {
   if (data?.length === 0 && !dates) return [];
@@ -215,7 +222,7 @@ export function groupChartData(
   const _dates = dates?.length === 1 ? [dates[0], addDays(dates[0], 1)] : dates;
 
   const between =
-    _dates || (data?.length ? [data[data.length - 1].date, data[0].date] : []);
+    _dates || (data?.length ? [data[data.length - 1].timestamp, data[0].timestamp] : []);
 
   if (!between.length) return [];
   const interval = evaluateInterval(between);
@@ -237,7 +244,7 @@ export function groupChartData(
   // e.g. make the "status" prop we use as T generic
   return timestamps.map((timestamp, i) => {
     const filteredData = data.filter((row) => {
-      const diff = row.date.getTime() - timestamp.date.getTime();
+      const diff = row.timestamp.getTime() - timestamp.date.getTime();
       return diff < interval && diff >= 0;
     });
 

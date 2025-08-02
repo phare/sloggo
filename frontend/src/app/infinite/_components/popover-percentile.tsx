@@ -1,9 +1,9 @@
 "use client";
-import { ColumnSchema } from "../schema";
+import { SyslogSchema } from "../schema";
 import { FunctionSquare } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { formatCompactNumber, formatMilliseconds } from "@/lib/format";
+import { formatCompactNumber } from "@/lib/format";
 import { Percentile, getPercentileColor } from "@/lib/request/percentile";
 import {
   Popover,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/popover";
 
 interface PopoverPercentileProps {
-  data?: ColumnSchema;
+  data?: SyslogSchema;
   percentiles?: Record<Percentile, number>;
   filterRows: number;
   className?: string;
@@ -25,14 +25,14 @@ export function PopoverPercentile({
   className,
 }: PopoverPercentileProps) {
   let percentileArray = percentiles
-    ? Object.entries(percentiles).map(([percentile, latency]) => [
+    ? Object.entries(percentiles).map(([percentile, priority]) => [
         parseInt(percentile),
-        latency,
+        priority,
       ])
     : [];
 
   data?.percentile
-    ? percentileArray.push([data.percentile, data.latency])
+    ? percentileArray.push([data.percentile, data.priority])
     : null;
   percentileArray.sort((a, b) => a[0] - b[0]);
 
@@ -70,7 +70,7 @@ export function PopoverPercentile({
             const active =
               data?.percentile &&
               data.percentile === key &&
-              value === data.latency;
+              value === data.priority;
             return (
               <div
                 key={`${key}-${value}`}
@@ -88,8 +88,8 @@ export function PopoverPercentile({
                   )}
                 >{`P${Math.round(key)}`}</div>
                 <div className="font-mono">
-                  {formatMilliseconds(Math.round(value))}
-                  <span className="text-muted-foreground">ms</span>
+                  {value}
+                  <span className="text-muted-foreground"> priority</span>
                 </div>
               </div>
             );

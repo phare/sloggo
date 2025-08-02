@@ -2,8 +2,8 @@ import { calculateSpecificPercentile } from "@/lib/request/percentile";
 import { addDays } from "date-fns";
 import { NextRequest } from "next/server";
 import SuperJSON from "superjson";
-import type { InfiniteQueryResponse, LogsMeta } from "../query-options";
-import type { ColumnSchema } from "../schema";
+import type { InfiniteQueryResponse, SyslogMeta } from "../query-options";
+import type { SyslogSchema } from "../schema";
 import { searchParamsCache } from "../search-params";
 import {
   filterData,
@@ -49,19 +49,19 @@ export async function GET(req: NextRequest): Promise<Response> {
   const withPercentileData = percentileData(sortedData);
   const data = splitData(withPercentileData, search);
 
-  const latencies = withPercentileData.map(({ latency }) => latency);
+  const priorities = withPercentileData.map(({ priority }) => priority);
   const currentPercentiles = {
-    50: calculateSpecificPercentile(latencies, 50),
-    75: calculateSpecificPercentile(latencies, 75),
-    90: calculateSpecificPercentile(latencies, 90),
-    95: calculateSpecificPercentile(latencies, 95),
-    99: calculateSpecificPercentile(latencies, 99),
+    50: calculateSpecificPercentile(priorities, 50),
+    75: calculateSpecificPercentile(priorities, 75),
+    90: calculateSpecificPercentile(priorities, 90),
+    95: calculateSpecificPercentile(priorities, 95),
+    99: calculateSpecificPercentile(priorities, 99),
   };
 
   const nextCursor =
-    data.length > 0 ? data[data.length - 1].date.getTime() : null;
+    data.length > 0 ? data[data.length - 1].timestamp.getTime() : null;
   const prevCursor =
-    data.length > 0 ? data[0].date.getTime() : new Date().getTime();
+    data.length > 0 ? data[0].timestamp.getTime() : new Date().getTime();
 
   return Response.json(
     SuperJSON.stringify({
@@ -83,6 +83,6 @@ export async function GET(req: NextRequest): Promise<Response> {
       },
       prevCursor,
       nextCursor,
-    } satisfies InfiniteQueryResponse<ColumnSchema[], LogsMeta>),
+    } satisfies InfiniteQueryResponse<SyslogSchema[], SyslogMeta>),
   );
 }

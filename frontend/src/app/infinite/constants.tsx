@@ -2,31 +2,62 @@
 
 import { CopyToClipboardContainer } from "@/components/custom/copy-to-clipboard-container";
 import { KVTabs } from "@/components/custom/kv-tabs";
-import { DataTableColumnRegion } from "@/components/data-table/data-table-column/data-table-column-region";
 import type {
   DataTableFilterField,
   Option,
   SheetField,
 } from "@/components/data-table/types";
 import { LEVELS } from "@/constants/levels";
-import { METHODS } from "@/constants/method";
-import { REGIONS } from "@/constants/region";
-import { formatMilliseconds } from "@/lib/format";
 import { getLevelColor, getLevelLabel } from "@/lib/request/level";
-import { getStatusColor } from "@/lib/request/status-code";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { PopoverPercentile } from "./_components/popover-percentile";
-import { SheetTimingPhases } from "./_components/sheet-timing-phases";
-import type { LogsMeta } from "./query-options";
-import { type ColumnSchema } from "./schema";
+import type { SyslogMeta } from "./query-options";
+import { type SyslogSchema } from "./schema";
 
-// instead of filterFields, maybe just 'fields' with a filterDisabled prop?
-// that way, we could have 'message' or 'headers' field with label and value as well as type!
+// Syslog facility names
+const SYSLOG_FACILITIES = [
+  { label: "Kernel messages", value: 0 },
+  { label: "User-level messages", value: 1 },
+  { label: "Mail system", value: 2 },
+  { label: "System daemons", value: 3 },
+  { label: "Security/authorization messages", value: 4 },
+  { label: "Messages generated internally by syslogd", value: 5 },
+  { label: "Line printer subsystem", value: 6 },
+  { label: "Network news subsystem", value: 7 },
+  { label: "UUCP subsystem", value: 8 },
+  { label: "Clock daemon", value: 9 },
+  { label: "Security/authorization messages", value: 10 },
+  { label: "FTP daemon", value: 11 },
+  { label: "NTP subsystem", value: 12 },
+  { label: "Log audit", value: 13 },
+  { label: "Log alert", value: 14 },
+  { label: "Clock daemon", value: 15 },
+  { label: "Local use 0", value: 16 },
+  { label: "Local use 1", value: 17 },
+  { label: "Local use 2", value: 18 },
+  { label: "Local use 3", value: 19 },
+  { label: "Local use 4", value: 20 },
+  { label: "Local use 5", value: 21 },
+  { label: "Local use 6", value: 22 },
+  { label: "Local use 7", value: 23 },
+];
+
+// Syslog severity levels
+const SYSLOG_SEVERITIES = [
+  { label: "Emergency", value: 0 },
+  { label: "Alert", value: 1 },
+  { label: "Critical", value: 2 },
+  { label: "Error", value: 3 },
+  { label: "Warning", value: 4 },
+  { label: "Notice", value: 5 },
+  { label: "Informational", value: 6 },
+  { label: "Debug", value: 7 },
+];
+
 export const filterFields = [
   {
     label: "Time Range",
-    value: "date",
+    value: "timestamp",
     type: "timerange",
     defaultOpen: true,
     commandDisabled: true,
@@ -38,7 +69,6 @@ export const filterFields = [
     defaultOpen: true,
     options: LEVELS.map((level) => ({ label: level, value: level })),
     component: (props: Option) => {
-      // TODO: type `Option` with `options` values via Generics
       const value = props.value as (typeof LEVELS)[number];
       return (
         <div className="flex w-full max-w-28 items-center justify-between gap-2 font-mono">
@@ -61,199 +91,124 @@ export const filterFields = [
     },
   },
   {
-    label: "Host",
-    value: "host",
+    label: "Hostname",
+    value: "hostname",
     type: "input",
   },
   {
-    label: "Pathname",
-    value: "pathname",
+    label: "App Name",
+    value: "appName",
     type: "input",
   },
   {
-    label: "Status Code",
-    value: "status",
-    type: "checkbox",
-    options: [
-      { label: "200", value: 200 },
-      { label: "400", value: 400 },
-      { label: "404", value: 404 },
-      { label: "500", value: 500 },
-    ], // REMINDER: this is a placeholder to set the type in the client.tsx
-    component: (props: Option) => {
-      if (typeof props.value === "boolean") return null;
-      if (typeof props.value === "undefined") return null;
-      if (typeof props.value === "string") return null;
-      return (
-        <span className={cn("font-mono", getStatusColor(props.value).text)}>
-          {props.value}
-        </span>
-      );
-    },
+    label: "Proc ID",
+    value: "procId",
+    type: "input",
   },
   {
-    label: "Method",
-    value: "method",
+    label: "Msg ID",
+    value: "msgId",
+    type: "input",
+  },
+  {
+    label: "Facility",
+    value: "facility",
     type: "checkbox",
-    options: METHODS.map((region) => ({ label: region, value: region })),
+    options: SYSLOG_FACILITIES,
     component: (props: Option) => {
       return <span className="font-mono">{props.value}</span>;
     },
   },
   {
-    label: "Regions",
-    value: "regions",
+    label: "Severity",
+    value: "severity",
     type: "checkbox",
-    options: REGIONS.map((region) => ({ label: region, value: region })),
+    options: SYSLOG_SEVERITIES,
     component: (props: Option) => {
       return <span className="font-mono">{props.value}</span>;
     },
   },
   {
-    label: "Latency",
-    value: "latency",
+    label: "Priority",
+    value: "priority",
     type: "slider",
     min: 0,
-    max: 5000,
+    max: 191,
   },
-  {
-    label: "DNS",
-    value: "timing.dns",
-    type: "slider",
-    min: 0,
-    max: 5000,
-  },
-  {
-    label: "Connection",
-    value: "timing.connection",
-    type: "slider",
-    min: 0,
-    max: 5000,
-  },
-  {
-    label: "TLS",
-    value: "timing.tls",
-    type: "slider",
-    min: 0,
-    max: 5000,
-  },
-  {
-    label: "TTFB",
-    value: "timing.ttfb",
-    type: "slider",
-    min: 0,
-    max: 5000,
-  },
-  {
-    label: "Transfer",
-    value: "timing.transfer",
-    type: "slider",
-    min: 0,
-    max: 5000,
-  },
-] satisfies DataTableFilterField<ColumnSchema>[];
+] satisfies DataTableFilterField<SyslogSchema>[];
 
 export const sheetFields = [
   {
     id: "uuid",
-    label: "Request ID",
+    label: "Message ID",
     type: "readonly",
     skeletonClassName: "w-64",
   },
   {
-    id: "date",
-    label: "Date",
+    id: "timestamp",
+    label: "Timestamp",
     type: "timerange",
-    component: (props) => format(new Date(props.date), "LLL dd, y HH:mm:ss"),
+    component: (props) => format(new Date(props.timestamp), "LLL dd, y HH:mm:ss"),
     skeletonClassName: "w-36",
   },
   {
-    id: "status",
-    label: "Status",
-    type: "checkbox",
+    id: "priority",
+    label: "Priority",
+    type: "readonly",
     component: (props) => {
+      const facility = props.facility;
+      const severity = props.severity;
       return (
-        <span className={cn("font-mono", getStatusColor(props.status).text)}>
-          {props.status}
-        </span>
+        <div className="flex flex-col">
+          <span className="font-mono">{props.priority}</span>
+          <span className="text-sm text-muted-foreground">
+            Facility: {facility}, Severity: {severity}
+          </span>
+        </div>
       );
+    },
+    skeletonClassName: "w-16",
+  },
+  {
+    id: "version",
+    label: "Version",
+    type: "readonly",
+    component: (props) => {
+      return <span className="font-mono">{props.version}</span>;
     },
     skeletonClassName: "w-12",
   },
   {
-    id: "method",
-    label: "Method",
-    type: "checkbox",
-    component: (props) => {
-      return <span className="font-mono">{props.method}</span>;
-    },
-    skeletonClassName: "w-10",
-  },
-  {
-    id: "host",
-    label: "Host",
+    id: "hostname",
+    label: "Hostname",
     type: "input",
     skeletonClassName: "w-24",
   },
   {
-    id: "pathname",
-    label: "Pathname",
+    id: "appName",
+    label: "App Name",
     type: "input",
-    skeletonClassName: "w-56",
+    skeletonClassName: "w-20",
   },
   {
-    id: "regions",
-    label: "Regions",
-    type: "checkbox",
-    skeletonClassName: "w-12",
-    component: (props) => (
-      <DataTableColumnRegion value={props.regions[0]} reverse showFlag />
-    ),
-  },
-  {
-    id: "latency",
-    label: "Latency",
-    type: "slider",
-    component: (props) => (
-      <>
-        {formatMilliseconds(props.latency)}
-        <span className="text-muted-foreground">ms</span>
-      </>
-    ),
+    id: "procId",
+    label: "Proc ID",
+    type: "input",
     skeletonClassName: "w-16",
   },
   {
-    id: "percentile",
-    label: "Percentile",
-    type: "readonly",
-    component: (props) => {
-      return (
-        <PopoverPercentile
-          data={props}
-          percentiles={props.metadata?.currentPercentiles}
-          filterRows={props.metadata?.filterRows as number}
-          className="ml-auto"
-        />
-      );
-    },
-    skeletonClassName: "w-12",
+    id: "msgId",
+    label: "Msg ID",
+    type: "input",
+    skeletonClassName: "w-16",
   },
   {
-    id: "timing.dns", // REMINDER: cannot be 'timing' as it is a property of the object
-    label: "Timing Phases",
+    id: "structuredData",
+    label: "Structured Data",
     type: "readonly",
+    condition: (props) => props.structuredData !== undefined && Object.keys(props.structuredData).length > 0,
     component: (props) => (
-      <SheetTimingPhases latency={props.latency} timing={props} />
-    ),
-    className: "flex-col items-start w-full gap-1",
-  },
-  {
-    id: "headers",
-    label: "Headers",
-    type: "readonly",
-    component: (props) => (
-      // REMINDER: negative margin to make it look like the header is on the same level of the tab triggers
-      <KVTabs data={props.headers} className="-mt-[22px]" />
+      <KVTabs data={props.structuredData || {}} className="-mt-[22px]" />
     ),
     className: "flex-col items-start w-full gap-1",
   },
@@ -261,12 +216,11 @@ export const sheetFields = [
     id: "message",
     label: "Message",
     type: "readonly",
-    condition: (props) => props.message !== undefined,
     component: (props) => (
       <CopyToClipboardContainer variant="destructive">
-        {JSON.stringify(props.message, null, 2)}
+        {props.message}
       </CopyToClipboardContainer>
     ),
     className: "flex-col items-start w-full gap-1",
   },
-] satisfies SheetField<ColumnSchema, LogsMeta>[];
+] satisfies SheetField<SyslogSchema, SyslogMeta>[];
