@@ -8,9 +8,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 
-const TITLE = "Powerful Data-Table for React | OpenStatus";
-const DESCRIPTION =
-  "Flexible, fast, and easy-to-use filters with tanstack table, shadcn/ui and search params via nuqs.";
+const TITLE = "Sloggo";
+const DESCRIPTION = "Minimalist logging receiver and viewer tool";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://data-table.openstatus.dev"),

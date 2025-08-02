@@ -8,7 +8,7 @@ import type {
   SheetField,
 } from "@/components/data-table/types";
 import { LEVELS } from "@/constants/levels";
-import { getLevelColor, getLevelLabel } from "@/lib/request/level";
+import { getLevelColor } from "@/lib/request/level";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { SyslogMeta } from "./query-options";

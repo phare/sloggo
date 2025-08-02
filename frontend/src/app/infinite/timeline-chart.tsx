@@ -12,7 +12,6 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
-import { getLevelLabel } from "@/lib/request/level";
 import { useDataTable } from "@/components/data-table/data-table-provider";
 import { BaseChartSchema, TimelineChartSchema } from "./schema";
 

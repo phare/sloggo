@@ -56,18 +56,3 @@ export function getLevelRowClassName(value: (typeof _LEVELS)[number]): string {
       return "";
   }
 }
-
-export function getLevelLabel(value: (typeof _LEVELS)[number]): string {
-  switch (value) {
-    case "info":
-      return "Info";
-    case "warning":
-      return "Warning";
-    case "error":
-      return "Error";
-    case "debug":
-      return "Debug";
-    default:
-      return "Unknown";
-  }
-}
