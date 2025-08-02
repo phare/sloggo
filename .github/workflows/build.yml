@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Go tests
-        run: go test ./...
+        run: cd backend && go test -cover -v ./...
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
