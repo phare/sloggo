@@ -8,6 +8,18 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
 import type { SyslogSchema } from "./schema";
 
+// Facility names for display
+const FACILITY_NAMES = [
+  "Kernel", "User", "Mail", "Daemon", "Auth", "Syslog", "LPR", "News",
+  "UUCP", "Cron", "AuthPriv", "FTP", "NTP", "Audit", "Alert", "Clock",
+  "Local0", "Local1", "Local2", "Local3", "Local4", "Local5", "Local6", "Local7"
+];
+
+// Severity names for display
+const SEVERITY_NAMES = [
+  "Emergency", "Alert", "Critical", "Error", "Warning", "Notice", "Info", "Debug"
+];
+
 export const columns: ColumnDef<SyslogSchema>[] = [
   {
     accessorKey: "level",
@@ -68,22 +80,63 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     },
   },
   {
+    accessorKey: "facility",
+    header: "Facility",
+    cell: ({ row }) => {
+      const facility = row.getValue<SyslogSchema["facility"]>("facility");
+      return (
+        <div className="flex flex-col">
+          <span className="font-mono text-sm">{facility}</span>
+          <span className="text-xs text-muted-foreground">
+            {FACILITY_NAMES[facility]}
+          </span>
+        </div>
+      );
+    },
+    filterFn: "arrIncludesSome",
+    enableResizing: false,
+    size: 100,
+    minSize: 100,
+    meta: {
+      headerClassName:
+        "w-[--header-facility-size] max-w-[--header-facility-size] min-w-[--header-facility-size]",
+      cellClassName:
+        "font-mono w-[--col-facility-size] max-w-[--col-facility-size] min-w-[--col-facility-size]",
+    },
+  },
+  {
+    accessorKey: "severity",
+    header: "Severity",
+    cell: ({ row }) => {
+      const severity = row.getValue<SyslogSchema["severity"]>("severity");
+      return (
+        <div className="flex flex-col">
+          <span className="font-mono text-sm">{severity}</span>
+          <span className="text-xs text-muted-foreground">
+            {SEVERITY_NAMES[severity]}
+          </span>
+        </div>
+      );
+    },
+    filterFn: "arrIncludesSome",
+    enableResizing: false,
+    size: 100,
+    minSize: 100,
+    meta: {
+      headerClassName:
+        "w-[--header-severity-size] max-w-[--header-severity-size] min-w-[--header-severity-size]",
+      cellClassName:
+        "font-mono w-[--col-severity-size] max-w-[--col-severity-size] min-w-[--col-severity-size]",
+    },
+  },
+  {
     accessorKey: "priority",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Priority" />
     ),
     cell: ({ row }) => {
       const priority = row.getValue<SyslogSchema["priority"]>("priority");
-      const facility = row.getValue<SyslogSchema["facility"]>("facility");
-      const severity = row.getValue<SyslogSchema["severity"]>("severity");
-      return (
-        <div className="flex flex-col">
-          <span className="font-mono text-sm">{priority}</span>
-          <span className="text-xs text-muted-foreground">
-            F{facility}.S{severity}
-          </span>
-        </div>
-      );
+      return <span className="font-mono">{priority}</span>;
     },
     filterFn: "inNumberRange",
     enableResizing: false,
@@ -185,10 +238,10 @@ export const columns: ColumnDef<SyslogSchema>[] = [
         return <span className="text-muted-foreground">-</span>;
       }
       return (
-        <TextWithTooltip 
+        <TextWithTooltip
           text={Object.entries(value)
             .map(([k, v]) => `${k}=${v}`)
-            .join(", ")} 
+            .join(", ")}
         />
       );
     },

@@ -158,11 +158,19 @@ export const sheetFields = [
     component: (props) => {
       const facility = props.facility;
       const severity = props.severity;
+      const facilityNames = [
+        "Kernel", "User", "Mail", "Daemon", "Auth", "Syslog", "LPR", "News",
+        "UUCP", "Cron", "AuthPriv", "FTP", "NTP", "Audit", "Alert", "Clock",
+        "Local0", "Local1", "Local2", "Local3", "Local4", "Local5", "Local6", "Local7"
+      ];
+      const severityNames = [
+        "Emergency", "Alert", "Critical", "Error", "Warning", "Notice", "Info", "Debug"
+      ];
       return (
         <div className="flex flex-col">
           <span className="font-mono">{props.priority}</span>
           <span className="text-sm text-muted-foreground">
-            Facility: {facility}, Severity: {severity}
+            {facilityNames[facility]} ({facility}) • {severityNames[severity]} ({severity})
           </span>
         </div>
       );

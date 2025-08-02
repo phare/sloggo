@@ -116,6 +116,8 @@ export function createMockSyslogData({
 
     return {
       uuid: crypto.randomUUID(),
+      facility,
+      severity,
       priority,
       version: Math.random() > 0.5 ? 1 : 2,
       timestamp,
@@ -126,8 +128,6 @@ export function createMockSyslogData({
       structuredData: getRandomStructuredData(),
       message: getRandomMessage(),
       level,
-      facility,
-      severity,
     };
   });
 }

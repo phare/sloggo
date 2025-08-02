@@ -23,7 +23,9 @@ const stringToBoolean = z
 // RFC 5424 Syslog Schema
 export const syslogSchema = z.object({
   uuid: z.string(),
-  priority: z.number().min(0).max(191), // PRI = facility * 8 + severity
+  facility: z.number().min(0).max(23), // Primary field - facility number
+  severity: z.number().min(0).max(7), // Primary field - severity number
+  priority: z.number().min(0).max(191), // Calculated: facility * 8 + severity
   version: z.number().min(1).max(2), // Version of syslog protocol
   timestamp: z.date(),
   hostname: z.string(),
@@ -32,9 +34,7 @@ export const syslogSchema = z.object({
   msgId: z.string(),
   structuredData: z.record(z.string()).optional(),
   message: z.string(),
-  level: z.enum(LEVELS), // Derived from priority severity
-  facility: z.number().min(0).max(23), // Derived from priority
-  severity: z.number().min(0).max(7), // Derived from priority
+  level: z.enum(LEVELS), // Derived from severity
   percentile: z.number().optional(), // Added by percentileData function
 });
 
