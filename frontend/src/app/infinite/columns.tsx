@@ -80,40 +80,15 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     },
   },
   {
-    accessorKey: "facility",
-    header: "Facility",
-    cell: ({ row }) => {
-      const facility = row.getValue<SyslogSchema["facility"]>("facility");
-      return (
-        <div className="flex flex-col">
-          <span className="font-mono text-sm">{facility}</span>
-          <span className="text-xs text-muted-foreground">
-            {FACILITY_NAMES[facility]}
-          </span>
-        </div>
-      );
-    },
-    filterFn: "arrIncludesSome",
-    enableResizing: false,
-    size: 100,
-    minSize: 100,
-    meta: {
-      headerClassName:
-        "w-[--header-facility-size] max-w-[--header-facility-size] min-w-[--header-facility-size]",
-      cellClassName:
-        "font-mono w-[--col-facility-size] max-w-[--col-facility-size] min-w-[--col-facility-size]",
-    },
-  },
-  {
     accessorKey: "severity",
     header: "Severity",
     cell: ({ row }) => {
       const severity = row.getValue<SyslogSchema["severity"]>("severity");
       return (
-        <div className="flex flex-col">
-          <span className="font-mono text-sm">{severity}</span>
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono text-sm">  {SEVERITY_NAMES[severity]}</span>
           <span className="text-xs text-muted-foreground">
-            {SEVERITY_NAMES[severity]}
+            {severity}
           </span>
         </div>
       );
@@ -150,21 +125,19 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     },
   },
   {
-    accessorKey: "version",
-    header: "Version",
+    accessorKey: "message",
+    header: "Message",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["version"]>("version");
-      return <span className="font-mono">{value}</span>;
+      const value = row.getValue<SyslogSchema["message"]>("message");
+      return <TextWithTooltip text={value} />;
     },
-    filterFn: "arrIncludesSome",
-    enableResizing: false,
-    size: 60,
-    minSize: 60,
+    size: 300,
+    minSize: 200,
     meta: {
       cellClassName:
-        "font-mono text-muted-foreground w-[--col-version-size] max-w-[--col-version-size] min-w-[--col-version-size]",
+        "font-mono w-[--col-message-size] max-w-[--col-message-size]",
       headerClassName:
-        "w-[--header-version-size] max-w-[--header-version-size] min-w-[--header-version-size]",
+        "min-w-[--header-message-size] w-[--header-message-size]",
     },
   },
   {
@@ -230,6 +203,31 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     },
   },
   {
+    accessorKey: "facility",
+    header: "Facility",
+    cell: ({ row }) => {
+      const facility = row.getValue<SyslogSchema["facility"]>("facility");
+      return (
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono text-sm">{FACILITY_NAMES[facility]}</span>
+          <span className="text-xs text-muted-foreground">
+            {facility}
+          </span>
+        </div>
+      );
+    },
+    filterFn: "arrIncludesSome",
+    enableResizing: false,
+    size: 100,
+    minSize: 100,
+    meta: {
+      headerClassName:
+        "w-[--header-facility-size] max-w-[--header-facility-size] min-w-[--header-facility-size]",
+      cellClassName:
+        "font-mono w-[--col-facility-size] max-w-[--col-facility-size] min-w-[--col-facility-size]",
+    },
+  },
+  {
     accessorKey: "structuredData",
     header: "Structured Data",
     cell: ({ row }) => {
@@ -254,20 +252,5 @@ export const columns: ColumnDef<SyslogSchema>[] = [
         "min-w-[--header-structureddata-size] w-[--header-structureddata-size]",
     },
   },
-  {
-    accessorKey: "message",
-    header: "Message",
-    cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["message"]>("message");
-      return <TextWithTooltip text={value} />;
-    },
-    size: 300,
-    minSize: 200,
-    meta: {
-      cellClassName:
-        "font-mono w-[--col-message-size] max-w-[--col-message-size]",
-      headerClassName:
-        "min-w-[--header-message-size] w-[--header-message-size]",
-    },
-  },
+
 ];
