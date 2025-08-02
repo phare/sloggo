@@ -9,7 +9,8 @@ ENV CGO_ENABLED=1 \
 RUN apk update && apk add --no-cache musl-dev gcc build-base
 
 WORKDIR /app
-COPY . .
+COPY backend/ .
+
 RUN go mod download
 RUN go build -o sloggo main.go
 
