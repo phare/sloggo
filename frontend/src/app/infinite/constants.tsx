@@ -82,9 +82,6 @@ export const filterFields = [
                 getLevelColor(value).bg,
               )}
             />
-            <span className="text-xs text-muted-foreground/70">
-              {getLevelLabel(value)}
-            </span>
           </div>
         </div>
       );

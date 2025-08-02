@@ -66,9 +66,9 @@ function calculatePriority(facility: number, severity: number): number {
 }
 
 function getLevelFromSeverity(severity: number): (typeof LEVELS)[number] {
-  if (severity <= 1) return "error";
-  if (severity <= 3) return "warning";
-  return "success";
+  if (severity <= 2) return "error";    // Emergency, Alert, Critical
+  if (severity <= 4) return "warning";  // Error, Warning
+  return "info";                        // Notice, Info, Debug
 }
 
 function getRandomStructuredData(): Record<string, string> | undefined {

@@ -5,7 +5,7 @@ export function getLevelColor(
   value: (typeof _LEVELS)[number]
 ): Record<"text" | "bg" | "border", string> {
   switch (value) {
-    case "success":
+    case "info":
       return {
         text: "text-muted",
         bg: "bg-muted",
@@ -23,7 +23,7 @@ export function getLevelColor(
         bg: "bg-error",
         border: "border-error",
       };
-    case "info":
+    case "debug":
     default:
       return {
         text: "text-info",
@@ -35,7 +35,7 @@ export function getLevelColor(
 
 export function getLevelRowClassName(value: (typeof _LEVELS)[number]): string {
   switch (value) {
-    case "success":
+    case "info":
       return "";
     case "warning":
       return cn(
@@ -47,7 +47,7 @@ export function getLevelRowClassName(value: (typeof _LEVELS)[number]): string {
         "bg-error/5 hover:bg-error/10 data-[state=selected]:bg-error/20 focus-visible:bg-error/10",
         "dark:bg-error/10 dark:hover:bg-error/20 dark:data-[state=selected]:bg-error/30 dark:focus-visible:bg-error/20"
       );
-    case "info":
+    case "debug":
       return cn(
         "bg-info/5 hover:bg-info/10 data-[state=selected]:bg-info/20 focus-visible:bg-info/10",
         "dark:bg-info/10 dark:hover:bg-info/20 dark:data-[state=selected]:bg-info/30 dark:focus-visible:bg-info/20"
@@ -59,12 +59,14 @@ export function getLevelRowClassName(value: (typeof _LEVELS)[number]): string {
 
 export function getLevelLabel(value: (typeof _LEVELS)[number]): string {
   switch (value) {
-    case "success":
-      return "2xx";
+    case "info":
+      return "Info";
     case "warning":
-      return "4xx";
+      return "Warning";
     case "error":
-      return "5xx";
+      return "Error";
+    case "debug":
+      return "Debug";
     default:
       return "Unknown";
   }

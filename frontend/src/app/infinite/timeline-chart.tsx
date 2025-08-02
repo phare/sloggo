@@ -19,9 +19,9 @@ import { BaseChartSchema, TimelineChartSchema } from "./schema";
 export const description = "A stacked bar chart";
 
 const chartConfig = {
-  success: {
-    label: <TooltipLabel level="success" />,
-    color: "hsl(var(--success))",
+  info: {
+    label: <TooltipLabel level="info" />,
+    color: "hsl(var(--muted))",
   },
   warning: {
     label: <TooltipLabel level="warning" />,
@@ -159,7 +159,7 @@ export function TimelineChart<TChart extends BaseChartSchema>({
         {/* TODO: we could use the `{timestamp, ...rest} = data[0]` to dynamically create the bars but that would mean the order can be very much random */}
         <Bar dataKey="error" stackId="a" fill="var(--color-error)" />
         <Bar dataKey="warning" stackId="a" fill="var(--color-warning)" />
-        <Bar dataKey="success" stackId="a" fill="var(--color-success)" />
+        <Bar dataKey="info" stackId="a" fill="var(--color-muted)" />
         {refAreaLeft && refAreaRight && (
           <ReferenceArea
             x1={refAreaLeft}

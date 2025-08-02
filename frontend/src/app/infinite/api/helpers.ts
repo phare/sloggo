@@ -250,7 +250,7 @@ export function groupChartData(
 
     return {
       timestamp: timestamp.date.getTime(), // TODO: use date-fns and interval to determine the format
-      success: filteredData.filter((row) => row.level === "success").length,
+      info: filteredData.filter((row) => row.level === "info").length,
       warning: filteredData.filter((row) => row.level === "warning").length,
       error: filteredData.filter((row) => row.level === "error").length,
     };
