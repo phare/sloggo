@@ -6,20 +6,6 @@ import {
 import { LEVELS } from "@/constants/levels";
 import { z } from "zod";
 
-// https://github.com/colinhacks/zod/issues/2985#issue-2008642190
-const stringToBoolean = z
-  .string()
-  .toLowerCase()
-  .transform((val) => {
-    try {
-      return JSON.parse(val);
-    } catch (e) {
-      console.log(e);
-      return undefined;
-    }
-  })
-  .pipe(z.boolean().optional());
-
 // RFC 5424 Syslog Schema
 export const columnSchema = z.object({
   uuid: z.string(),

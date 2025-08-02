@@ -23,7 +23,3 @@ export const arrSome: FilterFn<any> = (row, columnId, filterValue) => {
 };
 
 arrSome.autoRemove = (val: any) => !Array.isArray(val) || !val?.length;
-
-function testFalsey(val: any) {
-  return val === undefined || val === null || val === "";
-}

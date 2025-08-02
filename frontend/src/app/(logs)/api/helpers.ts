@@ -116,12 +116,6 @@ export function sortData(data: ColumnSchema[], sort: SearchParamsType["sort"]) {
   });
 }
 
-export function percentileData(data: ColumnSchema[]): ColumnSchema[] {
-  return data.map((row) => ({
-    ...row,
-  }));
-}
-
 export function splitData(data: ColumnSchema[], search: SearchParamsType) {
   let newData: ColumnSchema[] = [];
   const now = new Date();
@@ -221,10 +215,7 @@ export function groupChartData(
     timestamps.push({ date: newTimestamp });
   }
 
-  // TODO: make it dynamic to avoid havin 200, 400, 500 hardcoded
-  // TODO: make it more efficient
-  // e.g. make the "status" prop we use as T generic
-  return timestamps.map((timestamp, i) => {
+  return timestamps.map((timestamp ) => {
     const filteredData = data.filter((row) => {
       const diff = row.timestamp.getTime() - timestamp.date.getTime();
       return diff < interval && diff >= 0;
