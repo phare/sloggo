@@ -4,7 +4,7 @@ FROM golang:1.24-alpine AS go-builder
 ENV CGO_ENABLED=1 \
     CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
     GOOS=linux \
-    GOARCH=arm64
+    GOARCH=amd64
 
 RUN apk update && apk add --no-cache musl-dev gcc build-base
 
