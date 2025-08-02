@@ -2,7 +2,10 @@
 
 Sloggo is a minimalist logging receiver and viewer tool designed to handle a moderate amount of logs efficiently and provide a simple interface for exploring them. It supports receiving Syslog RFC 5424 logs and storing them in a lightweight SQLite database that fits in a single lightweight Docker container.
 
-Sloggo does not offer any security layer, and is meant to run in a private network behind a firewall.
+> [!WARNING]
+> Sloggo does not offer any security layer by default, only use it in a private network, or behind a secure reverse proxy.
+
+The UI is based on OpenStatus' [data table filter](https://github.com/openstatusHQ/data-table-filters) 🫶.
 
 ## Getting Started
 
