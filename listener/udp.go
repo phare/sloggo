@@ -1,34 +1,40 @@
 package listener
 
 import (
-	"database/sql"
 	"log"
 	"net"
 	"os"
+	"sloggo/db"
+	"sloggo/formats"
 )
 
 // StartUDPListener starts a UDP listener on the specified port.
 // The port can be configured using the environment variable "UDP_PORT".
 // Logs received are stored in the provided SQLite database.
-func StartUDPListener(db *sql.DB) {
-	// Get the port from the environment variable or use the default.
+func StartUDPListener() {
 	port := os.Getenv("UDP_PORT")
+
 	if port == "" {
-		port = "514" // Default UDP port
+		port = "5514"
+	}
+
+	intPort, err := net.LookupPort("udp", port)
+	if err != nil {
+		log.Fatalf("Invalid UDP port %s: %v", port, err)
 	}
 
 	addr := net.UDPAddr{
-		Port: parsePort(port),
+		Port: intPort,
 		IP:   net.ParseIP("0.0.0.0"),
 	}
 
 	conn, err := net.ListenUDP("udp", &addr)
 	if err != nil {
-		log.Fatalf("Failed to start UDP listener: %v", err)
+		log.Fatalf("Failed to start UDP listener on port %s: %v", port, err)
 	}
 	defer conn.Close()
 
-	log.Printf("UDP listener is running on :%s", port)
+	log.Printf("UDP listener is running on port :%s", port)
 
 	buffer := make([]byte, 1024)
 	for {
@@ -37,26 +43,18 @@ func StartUDPListener(db *sql.DB) {
 			log.Printf("Error reading from UDP: %v", err)
 			continue
 		}
-		message := string(buffer[:n])
-		storeLog(db, message)
-	}
-}
 
-// parsePort converts a port string to an integer and handles errors.
-func parsePort(port string) int {
-	parsedPort, err := net.LookupPort("udp", port)
-	if err != nil {
-		log.Fatalf("Invalid UDP port: %v", err)
-	}
-	return parsedPort
-}
+		logEntry, err := formats.NewRFC5424Log(string(buffer[:n]))
+		if err != nil {
+			log.Printf("Failed to parse log message: %v", err)
+			continue
+		}
 
-// storeLog inserts a log message into the SQLite database.
-func storeLog(db *sql.DB, message string) {
-	_, err := db.Exec("INSERT INTO logs (message) VALUES (?)", message)
-	if err != nil {
-		log.Printf("Failed to store log in database: %v", err)
-	} else {
-		log.Println("Log stored successfully")
+		query, params := logEntry.ToSQL()
+
+		if err := db.StoreLog(query, params); err != nil {
+			log.Printf("Failed to store log message: %v", err)
+			continue
+		}
 	}
 }
