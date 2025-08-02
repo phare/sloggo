@@ -4,32 +4,55 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 )
 
-// StartHTTPServer initializes and starts the HTTP server, serving both the API and the React frontend.
-func StartHTTPServer() {
-	frontendDir := "/app/public"
-	fs := http.FileServer(http.Dir(frontendDir))
+type Server struct {
+	port   string
+	server *http.Server
+}
 
-	// Serve React frontend and ensure frontend assets are served
-	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(frontendDir, r.URL.Path)
-		if _, err := os.Stat(path); os.IsNotExist(err) || filepath.Ext(r.URL.Path) == "" {
-			http.ServeFile(w, r, filepath.Join(frontendDir, "index.html"))
-			return
-		}
-		fs.ServeHTTP(w, r)
-	}))
+func NewServer() *Server {
+	port := os.Getenv("HTTP_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	return &Server{
+		port: port,
+	}
+}
+
+func (s *Server) setupRoutes() {
+	mux := http.NewServeMux()
 
 	// Health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Sloggo backend is running"))
 	})
 
-	log.Println("HTTP server is running on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	s.server = &http.Server{
+		Addr:    ":" + s.port,
+		Handler: mux,
+	}
+}
+
+func (s *Server) Start() error {
+	s.setupRoutes()
+	log.Printf("HTTP server is running on :%s", s.port)
+	return s.server.ListenAndServe()
+}
+
+func (s *Server) Shutdown() error {
+	if s.server != nil {
+		return s.server.Close()
+	}
+	return nil
+}
+
+// StartHTTPServer initializes and starts the HTTP server
+func StartHTTPServer() {
+	server := NewServer()
+	if err := server.Start(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("Failed to start HTTP server:", err)
 	}
 }

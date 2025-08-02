@@ -6,11 +6,6 @@ Sloggo does not offer any security layer, and is meant to run in a private netwo
 
 ## Getting Started
 
-### Prerequisites
-
-- Docker
-- Make
-
 ### Running the Project
 
 1. Clone the repository:
@@ -42,7 +37,7 @@ make test
 
 The following environment variables can be used to configure the application:
 
-- `UDP_PORT`: Port for the UDP Syslog listener (default: `514`).
+- `UDP_PORT`: Port for the UDP Syslog listener (default: `5514`).
 - `TCP_PORT`: Port for the TCP Syslog listener (default: `6514`).
 
 ## Contributing

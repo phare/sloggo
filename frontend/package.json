@@ -1,5 +1,5 @@
 {
-  "name": "data-table-filters",
+  "name": "sloggo-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "tsc": "tsc",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "seed": "node seed_data.js"
   },
   "dependencies": {
     "@date-fns/utc": "^2.1.1",

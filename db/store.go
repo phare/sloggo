@@ -3,38 +3,66 @@ package db
 import (
 	"database/sql"
 	"log"
+	"sync"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
-// InitializeSchema creates the SQLite schema for storing logs in RFC 5424 format.
-func InitializeSchema(db *sql.DB) error {
+var (
+	dbInstance *sql.DB
+	once       sync.Once
+)
+
+func init() {
+	var err error
+	dbInstance, err = sql.Open("sqlite3", "logs.db")
+	if err != nil {
+		log.Fatalf("Failed to connect to SQLite database: %v", err)
+	}
+
+	// Initialize schema
 	query := `
 	CREATE TABLE IF NOT EXISTS logs (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-		hostname TEXT,
-		app_name TEXT,
-		proc_id TEXT,
-		msg_id TEXT,
-		message TEXT
-	)`
-	_, err := db.Exec(query)
-	if err != nil {
-		log.Printf("Failed to create logs table: %v", err)
-		return err
+	    id INTEGER PRIMARY KEY AUTOINCREMENT,
+	    facility INTEGER NOT NULL,
+	    severity INTEGER NOT NULL,
+	    version INTEGER NOT NULL DEFAULT 1,
+	    timestamp TEXT NOT NULL,
+	    hostname TEXT NOT NULL,
+	    app_name TEXT NOT NULL,
+	    procid TEXT,
+	    msgid TEXT,
+	    structured_data TEXT,
+	    msg TEXT
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+	CREATE INDEX IF NOT EXISTS idx_logs_hostname ON logs(hostname);
+	CREATE INDEX IF NOT EXISTS idx_logs_app_name ON logs(app_name);
+	CREATE INDEX IF NOT EXISTS idx_logs_facility ON logs(facility);
+	CREATE INDEX IF NOT EXISTS idx_logs_severity ON logs(severity);
+	`
+
+	if _, err = dbInstance.Exec(query); err != nil {
+		log.Fatalf("Failed to create logs table: %v", err)
 	}
+
 	log.Println("Logs table created or already exists")
-	return nil
 }
 
-// StoreLog inserts a log message into the SQLite database in RFC 5424 format.
-func StoreLog(db *sql.DB, hostname, appName, procID, msgID, message string) {
-	query := `
-	INSERT INTO logs (hostname, app_name, proc_id, msg_id, message)
-	VALUES (?, ?, ?, ?, ?)`
-	_, err := db.Exec(query, hostname, appName, procID, msgID, message)
+// GetDBInstance returns the initialized SQLite database instance.
+func GetDBInstance() *sql.DB {
+	return dbInstance
+}
+
+// StoreLog stores an RFC5424 log message in the SQLite database.
+func StoreLog(query string, params []any) error {
+	_, err := dbInstance.Exec(query, params...)
+
 	if err != nil {
 		log.Printf("Failed to store log in database: %v", err)
-	} else {
-		log.Println("Log stored successfully")
+		return err
 	}
+
+	return nil
 }
