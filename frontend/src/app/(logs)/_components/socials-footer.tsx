@@ -1,8 +1,6 @@
 import { Kbd } from "@/components/custom/kbd";
 import { Link } from "@/components/custom/link";
-import { Bluesky } from "@/components/icons/bluesky";
 import { Github } from "@/components/icons/github";
-import { X } from "@/components/icons/x";
 import { ModeToggle } from "@/components/theme/toggle-mode";
 import { Button } from "@/components/ui/button";
 import {
