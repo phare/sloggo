@@ -16,10 +16,19 @@ RUN go build -o sloggo main.go
 # Stage 2: Build the React frontend
 FROM node:24-alpine AS frontend-builder
 
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
+
+# Copy only dependency files first for better caching
+COPY frontend/pnpm-lock.yaml frontend/package.json ./
+
+RUN pnpm fetch --prod
+
 COPY frontend/ .
-RUN npm install
-RUN npm run build
+
+RUN pnpm install --offline --prod
+RUN pnpm build
 
 # Stage 3: Create the final slim image
 FROM alpine:latest
@@ -28,7 +37,7 @@ RUN apk add --no-cache sqlite libc6-compat
 
 WORKDIR /app
 COPY --from=go-builder /app/sloggo /app/sloggo
-COPY --from=frontend-builder /app/.next /app/public
+COPY --from=frontend-builder /app/out /app/public
 
 EXPOSE 8080
 EXPOSE 6514

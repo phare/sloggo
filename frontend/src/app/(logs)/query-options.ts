@@ -8,6 +8,7 @@ import type {
 import { searchParamsSerializer, type SearchParamsType } from "./search-params";
 
 export type SyslogMeta = {
+  // Add any specific metadata from the Go API if needed
 };
 
 export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
@@ -16,6 +17,7 @@ export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
   chartData: BaseChartSchema[];
   facets: Record<string, FacetMetadataSchema>;
   metadata?: TMeta;
+  // Add any additional fields from the Go API response if needed
 };
 
 export type InfiniteQueryResponse<TData, TMeta = unknown> = {
@@ -41,7 +43,12 @@ export const dataOptions = (search: SearchParamsType) => {
         uuid: null,
         live: null,
       });
-      const response = await fetch(`/api${serialize}`);
+      // Use localhost in development, and window.location.origin in production
+      const apiBaseUrl =
+        process.env.NODE_ENV === "development"
+          ? "http://localhost:8080"
+          : window.location.origin;
+      const response = await fetch(`${apiBaseUrl}/api/logs${serialize}`);
       const json = await response.json();
       return SuperJSON.parse<InfiniteQueryResponse<ColumnSchema[], SyslogMeta>>(
         json,
@@ -56,7 +63,8 @@ export const dataOptions = (search: SearchParamsType) => {
       if (!lastPage.nextCursor) return null;
       return { cursor: lastPage.nextCursor, direction: "next" };
     },
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true, // Enable refetching on window focus to ensure latest data
     placeholderData: keepPreviousData,
+    staleTime: 30000, // 30 seconds before data is considered stale
   });
 };

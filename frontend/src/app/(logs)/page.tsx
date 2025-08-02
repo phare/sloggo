@@ -1,17 +1,16 @@
+"use client";
+
 import * as React from "react";
-import { searchParamsCache } from "./search-params";
-import { getQueryClient } from "@/providers/get-query-client";
-import { dataOptions } from "./query-options";
+import { Suspense } from "react";
 import { Client } from "./client";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-  const search = searchParamsCache.parse(await searchParams);
-  const queryClient = getQueryClient();
-  await queryClient.prefetchInfiniteQuery(dataOptions(search));
+// Force static generation
+export const dynamic = "force-static";
 
-  return <Client />;
+export default function LogsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <Client />
+    </Suspense>
+  );
 }

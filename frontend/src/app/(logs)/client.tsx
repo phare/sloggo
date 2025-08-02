@@ -16,7 +16,7 @@ import type { FacetMetadataSchema } from "./schema";
 import { searchParamsParser } from "./search-params";
 
 export function Client() {
-  const [search] = useQueryStates(searchParamsParser);
+  const [search, setSearch] = useQueryStates(searchParamsParser);
   const {
     data,
     isFetching,
