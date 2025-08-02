@@ -19,9 +19,6 @@ FROM node:24-alpine AS frontend-builder
 WORKDIR /app
 COPY frontend/ .
 RUN npm install
-
-# Expose the frontend development server port
-EXPOSE 3000
 RUN npm run build
 
 # Stage 3: Create the final slim image
@@ -31,7 +28,7 @@ RUN apk add --no-cache sqlite libc6-compat
 
 WORKDIR /app
 COPY --from=go-builder /app/sloggo /app/sloggo
-COPY --from=frontend-builder /app/build /app/public
+COPY --from=frontend-builder /app/.next /app/public
 
 EXPOSE 8080
 EXPOSE 6514
