@@ -57,7 +57,7 @@ export function LiveButton({ fetchPreviousPage }: LiveButtonProps) {
       date: null,
       sort: null,
     }));
-    table.getColumn("date")?.setFilterValue(undefined);
+    table.getColumn("timestamp")?.setFilterValue(undefined);
     table.resetSorting();
   }
 

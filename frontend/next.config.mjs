@@ -1,12 +1,12 @@
 import createMDX from '@next/mdx'
 
 import rehypePrettyCode from "rehype-pretty-code";
- 
+
 /** @type {import('rehype-pretty-code').Options} */
 const options = {
 	keepBackground: false,
 };
- 
+
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -20,14 +20,9 @@ const nextConfig = {
     return [
       {
 				source: "/i",
-				destination: "/infinite",
+				destination: "/",
 				permanent: true
 			},
-			{
-				source: "/vercel",
-				destination: "/infinite",
-				permanent: true
-			}
 		]
 	}
 };

@@ -1,17 +1,13 @@
 import { LEVELS } from "@/constants/levels";
 import { isArrayOfDates, isArrayOfNumbers } from "@/lib/is-array";
 import {
-  calculatePercentile,
-  calculateSpecificPercentile,
-} from "@/lib/request/percentile";
-import {
   addDays,
   addMilliseconds,
   differenceInMinutes,
   isSameDay,
 } from "date-fns";
 import type {
-  SyslogSchema,
+  ColumnSchema,
   FacetMetadataSchema,
   TimelineChartSchema,
 } from "../schema";
@@ -19,7 +15,7 @@ import type { SearchParamsType } from "../search-params";
 
 export const sliderFilterValues = [
   "priority",
-] as const satisfies (keyof SyslogSchema)[];
+] as const satisfies (keyof ColumnSchema)[];
 
 export const filterValues = [
   "level",
@@ -30,12 +26,12 @@ export const filterValues = [
   "appName",
   "procId",
   "msgId",
-] as const satisfies (keyof SyslogSchema)[];
+] as const satisfies (keyof ColumnSchema)[];
 
 export function filterData(
-  data: SyslogSchema[],
+  data: ColumnSchema[],
   search: Partial<SearchParamsType>,
-): SyslogSchema[] {
+): ColumnSchema[] {
   const { start, size, sort, ...filters } = search;
   return data.filter((row) => {
     for (const key in filters) {
@@ -107,7 +103,7 @@ export function filterData(
   });
 }
 
-export function sortData(data: SyslogSchema[], sort: SearchParamsType["sort"]) {
+export function sortData(data: ColumnSchema[], sort: SearchParamsType["sort"]) {
   if (!sort) return data;
   return data.sort((a, b) => {
     if (sort.desc) {
@@ -120,16 +116,14 @@ export function sortData(data: SyslogSchema[], sort: SearchParamsType["sort"]) {
   });
 }
 
-export function percentileData(data: SyslogSchema[]): SyslogSchema[] {
-  const priorities = data.map((row) => row.priority);
+export function percentileData(data: ColumnSchema[]): ColumnSchema[] {
   return data.map((row) => ({
     ...row,
-    percentile: calculatePercentile(priorities, row.priority),
   }));
 }
 
-export function splitData(data: SyslogSchema[], search: SearchParamsType) {
-  let newData: SyslogSchema[] = [];
+export function splitData(data: ColumnSchema[], search: SearchParamsType) {
+  let newData: ColumnSchema[] = [];
   const now = new Date();
 
   // TODO: write a helper function for this
@@ -160,7 +154,7 @@ export function splitData(data: SyslogSchema[], search: SearchParamsType) {
   return newData;
 }
 
-export function getFacetsFromData(data: SyslogSchema[]) {
+export function getFacetsFromData(data: ColumnSchema[]) {
   const valuesMap = data.reduce((prev, curr) => {
     Object.entries(curr).forEach(([key, value]) => {
       if (filterValues.includes(key as any)) {
@@ -200,20 +194,8 @@ export function getFacetsFromData(data: SyslogSchema[]) {
   return facets satisfies Record<string, FacetMetadataSchema>;
 }
 
-export function getPercentileFromData(data: SyslogSchema[]) {
-  const priorities = data.map((row) => row.priority);
-
-  const p50 = calculateSpecificPercentile(priorities, 50);
-  const p75 = calculateSpecificPercentile(priorities, 75);
-  const p90 = calculateSpecificPercentile(priorities, 90);
-  const p95 = calculateSpecificPercentile(priorities, 95);
-  const p99 = calculateSpecificPercentile(priorities, 99);
-
-  return { p50, p75, p90, p95, p99 };
-}
-
 export function groupChartData(
-  data: SyslogSchema[],
+  data: ColumnSchema[],
   dates: Date[] | null,
 ): TimelineChartSchema[] {
   if (data?.length === 0 && !dates) return [];

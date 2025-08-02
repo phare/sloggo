@@ -1,15 +1,13 @@
-import { calculateSpecificPercentile } from "@/lib/request/percentile";
 import { addDays } from "date-fns";
 import { NextRequest } from "next/server";
 import SuperJSON from "superjson";
 import type { InfiniteQueryResponse, SyslogMeta } from "../query-options";
-import type { SyslogSchema } from "../schema";
+import type { ColumnSchema } from "../schema";
 import { searchParamsCache } from "../search-params";
 import {
   filterData,
   getFacetsFromData,
   groupChartData,
-  percentileData,
   sliderFilterValues,
   sortData,
   splitData,
@@ -46,17 +44,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const sortedData = sortData(filteredData, search.sort);
   const withoutSliderFacets = getFacetsFromData(withoutSliderData);
   const facets = getFacetsFromData(filteredData);
-  const withPercentileData = percentileData(sortedData);
-  const data = splitData(withPercentileData, search);
-
-  const priorities = withPercentileData.map(({ priority }) => priority);
-  const currentPercentiles = {
-    50: calculateSpecificPercentile(priorities, 50),
-    75: calculateSpecificPercentile(priorities, 75),
-    90: calculateSpecificPercentile(priorities, 90),
-    95: calculateSpecificPercentile(priorities, 95),
-    99: calculateSpecificPercentile(priorities, 99),
-  };
+  const data = splitData(sortedData, search);
 
   const nextCursor =
     data.length > 0 ? data[data.length - 1].timestamp.getTime() : null;
@@ -79,10 +67,10 @@ export async function GET(req: NextRequest): Promise<Response> {
             ),
           ),
         },
-        metadata: { currentPercentiles },
+        metadata: {},
       },
       prevCursor,
       nextCursor,
-    } satisfies InfiniteQueryResponse<SyslogSchema[], SyslogMeta>),
+    } satisfies InfiniteQueryResponse<ColumnSchema[], SyslogMeta>),
   );
 }

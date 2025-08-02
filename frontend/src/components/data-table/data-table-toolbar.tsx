@@ -97,7 +97,8 @@ export function DataTableToolbar({ renderActions }: DataTableToolbarProps) {
       <div className="ml-auto flex items-center gap-2">
         {filters.length ? <DataTableResetButton /> : null}
         {renderActions?.()}
-        <DataTableViewOptions />
+        {/* Reordering columns messes with the table, fix later */}
+        {/*<DataTableViewOptions />*/}
       </div>
     </div>
   );

@@ -1,15 +1,13 @@
-import type { Percentile } from "@/lib/request/percentile";
 import { infiniteQueryOptions, keepPreviousData } from "@tanstack/react-query";
 import SuperJSON from "superjson";
 import type {
   BaseChartSchema,
-  SyslogSchema,
+  ColumnSchema,
   FacetMetadataSchema,
 } from "./schema";
 import { searchParamsSerializer, type SearchParamsType } from "./search-params";
 
 export type SyslogMeta = {
-  currentPercentiles: Record<Percentile, number>;
 };
 
 export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
@@ -43,9 +41,9 @@ export const dataOptions = (search: SearchParamsType) => {
         uuid: null,
         live: null,
       });
-      const response = await fetch(`/infinite/api${serialize}`);
+      const response = await fetch(`/api${serialize}`);
       const json = await response.json();
-      return SuperJSON.parse<InfiniteQueryResponse<SyslogSchema[], SyslogMeta>>(
+      return SuperJSON.parse<InfiniteQueryResponse<ColumnSchema[], SyslogMeta>>(
         json,
       );
     },

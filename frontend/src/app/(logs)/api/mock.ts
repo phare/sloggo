@@ -1,5 +1,5 @@
 import { LEVELS } from "@/constants/levels";
-import { SyslogSchema } from "../schema";
+import { ColumnSchema } from "../schema";
 import { subMinutes } from "date-fns";
 
 const DAYS = 20;
@@ -105,7 +105,7 @@ export function createMockSyslogData({
 }: {
   size?: number;
   minutes?: number;
-}): SyslogSchema[] {
+}): ColumnSchema[] {
   const timestamp = subMinutes(new Date(), minutes);
 
   return Array.from({ length: 6 }, () => {
@@ -134,9 +134,9 @@ export function createMockSyslogData({
 
 export const mock = Array.from({ length: DAYS * 24 })
   .map((_, i) => createMockSyslogData({ minutes: i * 60 }))
-  .reduce((prev, curr) => prev.concat(curr), []) satisfies SyslogSchema[];
+  .reduce((prev, curr) => prev.concat(curr), []) satisfies ColumnSchema[];
 
 export const mockLive = Array.from({ length: 10 })
   .map((_, i) => createMockSyslogData({ minutes: -((i + 1) * 0.3) }))
   .reduce((prev, curr) => prev.concat(curr), [])
-  .reverse() satisfies SyslogSchema[];
+  .reverse() satisfies ColumnSchema[];

@@ -21,12 +21,11 @@ const stringToBoolean = z
   .pipe(z.boolean().optional());
 
 // RFC 5424 Syslog Schema
-export const syslogSchema = z.object({
+export const columnSchema = z.object({
   uuid: z.string(),
-  facility: z.number().min(0).max(23), // Primary field - facility number
-  severity: z.number().min(0).max(7), // Primary field - severity number
+  facility: z.number().min(0).max(23),
+  severity: z.number().min(0).max(7),
   priority: z.number().min(0).max(191), // Calculated: facility * 8 + severity
-  version: z.number().min(1).max(2), // Version of syslog protocol
   timestamp: z.date(),
   hostname: z.string(),
   appName: z.string(),
@@ -35,13 +34,12 @@ export const syslogSchema = z.object({
   structuredData: z.record(z.string()).optional(),
   message: z.string(),
   level: z.enum(LEVELS), // Derived from severity
-  percentile: z.number().optional(), // Added by percentileData function
 });
 
-export type SyslogSchema = z.infer<typeof syslogSchema>;
+export type ColumnSchema = z.infer<typeof columnSchema>;
 
 // TODO: can we get rid of this in favor of nuqs search-params?
-export const syslogFilterSchema = z.object({
+export const columnFilterSchema = z.object({
   level: z
     .string()
     .transform((val) => val.split(ARRAY_DELIMITER))
@@ -73,7 +71,7 @@ export const syslogFilterSchema = z.object({
     .optional(),
 });
 
-export type SyslogFilterSchema = z.infer<typeof syslogFilterSchema>;
+export type ColumnFilterSchema = z.infer<typeof columnFilterSchema>;
 
 export const facetMetadataSchema = z.object({
   rows: z.array(z.object({ value: z.any(), total: z.number() })),
@@ -99,7 +97,3 @@ export const timelineChartSchema = z.object({
 }) satisfies z.ZodType<BaseChartSchema>;
 
 export type TimelineChartSchema = z.infer<typeof timelineChartSchema>;
-
-// Legacy type aliases for backward compatibility
-export type ColumnSchema = SyslogSchema;
-export type ColumnFilterSchema = SyslogFilterSchema;

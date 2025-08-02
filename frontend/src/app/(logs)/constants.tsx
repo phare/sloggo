@@ -12,7 +12,7 @@ import { getLevelColor } from "@/lib/request/level";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { SyslogMeta } from "./query-options";
-import { type SyslogSchema } from "./schema";
+import { type ColumnSchema } from "./schema";
 
 // Syslog facility names
 const SYSLOG_FACILITIES = [
@@ -133,7 +133,7 @@ export const filterFields = [
     min: 0,
     max: 191,
   },
-] satisfies DataTableFilterField<SyslogSchema>[];
+] satisfies DataTableFilterField<ColumnSchema>[];
 
 export const sheetFields = [
   {
@@ -176,15 +176,6 @@ export const sheetFields = [
     skeletonClassName: "w-16",
   },
   {
-    id: "version",
-    label: "Version",
-    type: "readonly",
-    component: (props) => {
-      return <span className="font-mono">{props.version}</span>;
-    },
-    skeletonClassName: "w-12",
-  },
-  {
     id: "hostname",
     label: "Hostname",
     type: "input",
@@ -223,10 +214,10 @@ export const sheetFields = [
     label: "Message",
     type: "readonly",
     component: (props) => (
-      <CopyToClipboardContainer variant="destructive">
+      <CopyToClipboardContainer>
         {props.message}
       </CopyToClipboardContainer>
     ),
     className: "flex-col items-start w-full gap-1",
   },
-] satisfies SheetField<SyslogSchema, SyslogMeta>[];
+] satisfies SheetField<ColumnSchema, SyslogMeta>[];

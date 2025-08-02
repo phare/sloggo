@@ -6,7 +6,7 @@ import { DataTableColumnLevelIndicator } from "@/components/data-table/data-tabl
 import { cn } from "@/lib/utils";
 import type { ColumnDef } from "@tanstack/react-table";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
-import type { SyslogSchema } from "./schema";
+import type { ColumnSchema } from "./schema";
 
 // Facility names for display
 const FACILITY_NAMES = [
@@ -20,12 +20,12 @@ const SEVERITY_NAMES = [
   "Emergency", "Alert", "Critical", "Error", "Warning", "Notice", "Info", "Debug"
 ];
 
-export const columns: ColumnDef<SyslogSchema>[] = [
+export const columns: ColumnDef<ColumnSchema>[] = [
   {
     accessorKey: "level",
     header: "",
     cell: ({ row }) => {
-      const level = row.getValue<SyslogSchema["level"]>("level");
+      const level = row.getValue<ColumnSchema["level"]>("level");
       return <DataTableColumnLevelIndicator value={level} />;
     },
     enableHiding: false,
@@ -47,7 +47,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue<SyslogSchema["timestamp"]>("timestamp"));
+      const date = new Date(row.getValue<ColumnSchema["timestamp"]>("timestamp"));
       return <HoverCardTimestamp date={date} />;
     },
     filterFn: "inDateRange",
@@ -66,7 +66,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "uuid",
     header: "Message ID",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["uuid"]>("uuid");
+      const value = row.getValue<ColumnSchema["uuid"]>("uuid");
       return <TextWithTooltip text={value} />;
     },
     size: 130,
@@ -83,7 +83,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "severity",
     header: "Severity",
     cell: ({ row }) => {
-      const severity = row.getValue<SyslogSchema["severity"]>("severity");
+      const severity = row.getValue<ColumnSchema["severity"]>("severity");
       return (
         <div className="flex items-baseline gap-2">
           <span className="font-mono text-sm">  {SEVERITY_NAMES[severity]}</span>
@@ -110,7 +110,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
       <DataTableColumnHeader column={column} title="Priority" />
     ),
     cell: ({ row }) => {
-      const priority = row.getValue<SyslogSchema["priority"]>("priority");
+      const priority = row.getValue<ColumnSchema["priority"]>("priority");
       return <span className="font-mono">{priority}</span>;
     },
     filterFn: "inNumberRange",
@@ -128,7 +128,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "message",
     header: "Message",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["message"]>("message");
+      const value = row.getValue<ColumnSchema["message"]>("message");
       return <TextWithTooltip text={value} />;
     },
     size: 300,
@@ -144,7 +144,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "hostname",
     header: "Hostname",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["hostname"]>("hostname");
+      const value = row.getValue<ColumnSchema["hostname"]>("hostname");
       return <TextWithTooltip text={value} />;
     },
     size: 125,
@@ -158,7 +158,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "appName",
     header: "App Name",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["appName"]>("appName");
+      const value = row.getValue<ColumnSchema["appName"]>("appName");
       return <TextWithTooltip text={value} />;
     },
     size: 100,
@@ -174,7 +174,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "procId",
     header: "Proc ID",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["procId"]>("procId");
+      const value = row.getValue<ColumnSchema["procId"]>("procId");
       return <span className="font-mono">{value}</span>;
     },
     size: 80,
@@ -190,7 +190,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "msgId",
     header: "Msg ID",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["msgId"]>("msgId");
+      const value = row.getValue<ColumnSchema["msgId"]>("msgId");
       return <span className="font-mono">{value}</span>;
     },
     size: 80,
@@ -206,7 +206,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "facility",
     header: "Facility",
     cell: ({ row }) => {
-      const facility = row.getValue<SyslogSchema["facility"]>("facility");
+      const facility = row.getValue<ColumnSchema["facility"]>("facility");
       return (
         <div className="flex items-baseline gap-2">
           <span className="font-mono text-sm">{FACILITY_NAMES[facility]}</span>
@@ -231,7 +231,7 @@ export const columns: ColumnDef<SyslogSchema>[] = [
     accessorKey: "structuredData",
     header: "Structured Data",
     cell: ({ row }) => {
-      const value = row.getValue<SyslogSchema["structuredData"]>("structuredData");
+      const value = row.getValue<ColumnSchema["structuredData"]>("structuredData");
       if (!value || Object.keys(value).length === 0) {
         return <span className="text-muted-foreground">-</span>;
       }
