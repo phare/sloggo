@@ -1,3 +1,11 @@
+<p align="center"><img src="/sloggo-logo.png" width="400" alt="Sloggo Logo"></p>
+
+<p align="center">
+<a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build" alt="Build"></a>
+<a href="https://github.com/phare/sloggo/tags"><img src="https://img.shields.io/github/v/tag/phare/sloggo" alt="Version"></a>
+<a href="https://github.com/phare/sloggo?tab=MIT-1-ov-file#readme"><img src="https://img.shields.io/github/license/phare/sloggo" alt="License"></a>
+</p>
+
 # Sloggo
 
 Sloggo is a minimalist logging receiver and viewer tool designed to handle a moderate amount of logs efficiently and provide a simple interface for exploring them. It supports receiving Syslog RFC 5424 logs and storing them in a lightweight SQLite database that fits in a single lightweight Docker container.
