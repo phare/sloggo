@@ -16,20 +16,10 @@ import NextLink from "next/link";
 export function SocialsFooter() {
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid w-full grid-cols-3 items-center justify-center gap-2 p-1 md:grid-cols-6">
+      <div className="flex w-full grid-cols-3 items-center justify-center gap-2 p-1">
         <Button variant="ghost" size="sm" className="h-8 w-8 px-0" asChild>
-          <NextLink href="https://github.com/openstatusHQ/data-table-filters">
+          <NextLink href="https://github.com/phare/sloggo">
             <Github className="h-4 w-4" />
-          </NextLink>
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8 w-8 px-0" asChild>
-          <NextLink href="https://twitter.com/openstatusHQ">
-            <X className="h-4 w-4" />
-          </NextLink>
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8 w-8 px-0" asChild>
-          <NextLink href="https://bsky.app/profile/openstatus.dev">
-            <Bluesky className="h-4 w-4" />
           </NextLink>
         </Button>
         <ModeToggle className="h-8 w-8 [&>svg]:h-4 [&>svg]:w-4" />
@@ -43,28 +33,12 @@ export function SocialsFooter() {
             <HotkeyOverview />
           </PopoverContent>
         </Popover>
-        <Button variant="ghost" size="sm" className="h-8 w-8 px-0" asChild>
-          <NextLink href="/guide">
-            <Book className="h-4 w-4" />
-          </NextLink>
-        </Button>
       </div>
       <p className="text-center text-xs text-muted-foreground">
-        Powered by{" "}
-        <Link href="https://openstatus.dev" hideArrow>
-          OpenStatus
+        Inspired by{" "}
+        <Link href="https://data-table.openstatus.dev/" hideArrow>
+          OpenStatus’s Data Table
         </Link>
-      </p>
-      <p className="text-center text-[10px] text-muted-foreground">
-        The project is in active development. For feedback, please{" "}
-        <Link
-          href="https://github.com/openstatusHQ/data-table-filters/issues/new"
-          className="text-muted-foreground"
-          hideArrow
-        >
-          open an issue
-        </Link>{" "}
-        on GitHub.
       </p>
     </div>
   );

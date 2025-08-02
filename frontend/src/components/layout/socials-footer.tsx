@@ -11,18 +11,8 @@ export function SocialsFooter() {
     <div className="flex flex-col gap-1">
       <div className="flex justify-center items-center gap-2 p-1">
         <Button variant="ghost" size="sm" className="w-9 px-0" asChild>
-          <NextLink href="https://github.com/openstatusHQ/data-table-filters">
+          <NextLink href="https://github.com/phare/sloggo">
             <Github className="h-4 w-4" />
-          </NextLink>
-        </Button>
-        <Button variant="ghost" size="sm" className="w-9 px-0" asChild>
-          <NextLink href="https://twitter.com/openstatusHQ">
-            <X className="h-4 w-4" />
-          </NextLink>
-        </Button>
-        <Button variant="ghost" size="sm" className="w-9 px-0" asChild>
-          <NextLink href="https://bsky.app/profile/openstatus.dev">
-            <Bluesky className="h-4 w-4" />
           </NextLink>
         </Button>
         <ModeToggle className="[&>svg]:h-4 [&>svg]:w-4" />

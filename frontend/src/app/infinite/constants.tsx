@@ -107,24 +107,25 @@ export const filterFields = [
     value: "msgId",
     type: "input",
   },
-  {
-    label: "Facility",
-    value: "facility",
-    type: "checkbox",
-    options: SYSLOG_FACILITIES,
-    component: (props: Option) => {
-      return <span className="font-mono">{props.value}</span>;
-    },
-  },
-  {
-    label: "Severity",
-    value: "severity",
-    type: "checkbox",
-    options: SYSLOG_SEVERITIES,
-    component: (props: Option) => {
-      return <span className="font-mono">{props.value}</span>;
-    },
-  },
+  // Fix facilities and severity filter when backend supports it or make it work in frontend
+  // {
+  //   label: "Facility",
+  //   value: "facility",
+  //   type: "checkbox",
+  //   options: SYSLOG_FACILITIES,
+  //   component: (props: Option) => {
+  //     return <span className="font-mono">{props.label}</span>;
+  //   },
+  // },
+  // {
+  //   label: "Severity",
+  //   value: "severity",
+  //   type: "checkbox",
+  //   options: SYSLOG_SEVERITIES,
+  //   component: (props: Option) => {
+  //     return <span className="font-mono">{props.label}</span>;
+  //   },
+  // },
   {
     label: "Priority",
     value: "priority",
