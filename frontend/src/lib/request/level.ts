@@ -7,9 +7,9 @@ export function getLevelColor(
   switch (value) {
     case "info":
       return {
-        text: "text-muted",
-        bg: "bg-muted",
-        border: "border-muted",
+        text: "text-blue-500",
+        bg: "bg-blue-500",
+        border: "border-blue-500",
       };
     case "warning":
       return {

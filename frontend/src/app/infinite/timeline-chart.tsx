@@ -21,7 +21,7 @@ export const description = "A stacked bar chart";
 const chartConfig = {
   info: {
     label: <TooltipLabel level="info" />,
-    color: "hsl(var(--muted))",
+    color: "hsl(var(--info))",
   },
   warning: {
     label: <TooltipLabel level="warning" />,
@@ -157,9 +157,9 @@ export function TimelineChart<TChart extends BaseChartSchema>({
           }
         />
         {/* TODO: we could use the `{timestamp, ...rest} = data[0]` to dynamically create the bars but that would mean the order can be very much random */}
-        <Bar dataKey="error" stackId="a" fill="var(--color-error)" />
-        <Bar dataKey="warning" stackId="a" fill="var(--color-warning)" />
-        <Bar dataKey="info" stackId="a" fill="var(--color-muted)" />
+        <Bar dataKey="error" stackId="a" fill="#ef4444" />
+        <Bar dataKey="warning" stackId="a" fill="#f59e0b" />
+        <Bar dataKey="info" stackId="a" fill="#3b82f6" />
         {refAreaLeft && refAreaRight && (
           <ReferenceArea
             x1={refAreaLeft}
@@ -198,9 +198,6 @@ function TooltipLabel({
   return (
     <div className="mr-2 flex w-20 items-center justify-between gap-2 font-mono">
       <div className="capitalize text-foreground/70">{level}</div>
-      <div className="text-xs text-muted-foreground/70">
-        {getLevelLabel(level)}
-      </div>
     </div>
   );
 }
