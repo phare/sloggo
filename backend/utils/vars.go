@@ -14,6 +14,8 @@ var UdpPort string
 
 var TcpPort string
 
+var ApiPort string
+
 var LogRetentionMinutes int64
 
 var Version string
@@ -22,6 +24,8 @@ func init() {
 	Listeners = strings.Split(GetSanitizedEnvString("SLOGGO_LISTENERS", "tcp,udp"), ",")
 	UdpPort = GetSanitizedEnvString("SLOGGO_UDP_PORT", "5514")
 	TcpPort = GetSanitizedEnvString("SLOGGO_TCP_PORT", "6514")
+	ApiPort = GetSanitizedEnvString("SLOGGO_API_PORT", "8080")
+
 	LogRetentionMinutes = GetSanitizedEnvInt64("SLOGGO_LOG_RETENTION_MINUTES", 3*24*60) // Default to 3 days
 }
 
