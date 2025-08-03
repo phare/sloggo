@@ -6,14 +6,21 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
-	dbDirectory string
-	dbInstance  *sql.DB
+	dbDirectory    string
+	dbInstance     *sql.DB
+	batchMutex     sync.Mutex
+	batchLogs      []string
+	batchParams    [][]any
+	maxBatchSize   = 10000
+	checkpointTick = 5 * time.Second
 )
 
 func init() {
@@ -47,6 +54,16 @@ func init() {
 	}
 
 	log.Println("Logs table created or already exists")
+
+	// Initialize the batch logs slice
+	batchLogs = make([]string, 0, maxBatchSize)
+	batchParams = make([][]any, 0, maxBatchSize)
+
+	// Start the batch processor
+	go processBatchPeriodically()
+
+	// Start the checkpoint process
+	go performCheckpointsPeriodically()
 }
 
 // GetDBInstance returns the initialized SQLite database instance.
@@ -54,16 +71,94 @@ func GetDBInstance() *sql.DB {
 	return dbInstance
 }
 
-// StoreLog stores an RFC5424 log message in the SQLite database.
+// StoreLog adds a log message to the batch for efficient processing
 func StoreLog(query string, params []any) error {
-	_, err := dbInstance.Exec(query, params...)
+	batchMutex.Lock()
+	defer batchMutex.Unlock()
 
-	if err != nil {
-		log.Printf("Failed to store log in database: %v", err)
-		return err
+	batchLogs = append(batchLogs, query)
+	batchParams = append(batchParams, params)
+
+	// If we've reached the max batch size, process immediately
+	if len(batchLogs) >= maxBatchSize {
+		return processBatch()
 	}
 
 	return nil
+}
+
+// processBatch processes all pending log entries in a single transaction
+func processBatch() error {
+	if len(batchLogs) == 0 {
+		return nil
+	}
+
+	// Start a transaction
+	tx, err := dbInstance.Begin()
+	if err != nil {
+		log.Printf("Failed to begin transaction: %v", err)
+		return err
+	}
+
+	// Prepare to execute each statement
+	for i := 0; i < len(batchLogs); i++ {
+		_, err := tx.Exec(batchLogs[i], batchParams[i]...)
+		if err != nil {
+			tx.Rollback()
+			log.Printf("Failed to execute batch statement: %v", err)
+			return err
+		}
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		log.Printf("Failed to commit transaction: %v", err)
+		return err
+	}
+
+	// Clear the batches
+	batchLogs = batchLogs[:0]
+	batchParams = batchParams[:0]
+
+	return nil
+}
+
+// processBatchPeriodically processes any pending logs on a timer
+func processBatchPeriodically() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		batchMutex.Lock()
+		err := processBatch()
+		batchMutex.Unlock()
+
+		if err != nil {
+			log.Printf("Error in periodic batch processing: %v", err)
+		}
+	}
+}
+
+// performCheckpoint executes a checkpoint to flush WAL to the main database file
+func performCheckpoint() error {
+	_, err := dbInstance.Exec("PRAGMA wal_checkpoint(PASSIVE);")
+	if err != nil {
+		log.Printf("Failed to perform WAL checkpoint: %v", err)
+		return err
+	}
+	return nil
+}
+
+// performCheckpointsPeriodically runs checkpoints on a timer
+func performCheckpointsPeriodically() {
+	ticker := time.NewTicker(checkpointTick)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := performCheckpoint(); err != nil {
+			log.Printf("Error in periodic checkpoint: %v", err)
+		}
+	}
 }
 
 // setupDatabase initializes the database connection
@@ -83,8 +178,13 @@ func setupDatabase() {
 		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
 	}
 
-	dbInstance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=OFF&_cache_size=-100000")
+	dbInstance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000")
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite database: %v", err)
 	}
+
+	// Set connection pool parameters
+	dbInstance.SetMaxOpenConns(1)
+	dbInstance.SetMaxIdleConns(1)
+	dbInstance.SetConnMaxLifetime(10 * time.Minute)
 }
