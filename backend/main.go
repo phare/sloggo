@@ -1,7 +1,9 @@
 package main
 
 import (
+	"slices"
 	"sloggo/server"
+	"sloggo/utils"
 
 	"sloggo/listener"
 
@@ -9,12 +11,13 @@ import (
 )
 
 func main() {
-	// Start UDP listener
-	go listener.StartUDPListener()
+	if slices.Contains(utils.Listeners, "udp") {
+		go listener.StartUDPListener()
+	}
 
-	// Start TCP listener
-	go listener.StartTCPListener()
+	if slices.Contains(utils.Listeners, "tcp") {
+		go listener.StartTCPListener()
+	}
 
-	// Start HTTP server
 	server.StartHTTPServer()
 }
