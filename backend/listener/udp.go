@@ -3,20 +3,13 @@ package listener
 import (
 	"log"
 	"net"
-	"os"
 	"sloggo/db"
 	"sloggo/formats"
+	"sloggo/utils"
 )
 
-// StartUDPListener starts a UDP listener on the specified port.
-// The port can be configured using the environment variable "UDP_PORT".
-// Logs received are stored in the provided SQLite database.
 func StartUDPListener() {
-	port := os.Getenv("UDP_PORT")
-
-	if port == "" {
-		port = "5514"
-	}
+	port := utils.UdpPort
 
 	intPort, err := net.LookupPort("udp", port)
 	if err != nil {

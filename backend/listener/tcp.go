@@ -3,20 +3,14 @@ package listener
 import (
 	"log"
 	"net"
-	"os"
 	"sloggo/db"
 	"sloggo/formats"
+	"sloggo/utils"
 	"time"
 )
 
-// StartTCPListener starts a TCP listener on port 6514.
-// Logs received are parsed and stored in the SQLite database.
 func StartTCPListener() {
-	port := os.Getenv("TCP_PORT")
-
-	if port == "" {
-		port = "6514"
-	}
+	port := utils.TcpPort
 
 	_, err := net.LookupPort("tcp", port)
 	if err != nil {
@@ -30,6 +24,7 @@ func StartTCPListener() {
 	defer listener.Close()
 
 	log.Printf("TCP listener is running on port :%s", port)
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
