@@ -4,6 +4,7 @@ import (
 	"sloggo/db"
 	"strings"
 	"testing"
+	"time"
 )
 
 type expectedResult struct {
@@ -49,6 +50,15 @@ func verifyLogEntry(t *testing.T, tc testCase) {
 	var hostname, appName, procid, msgid, message, structuredData string
 	var severity, facility int
 
+	// Force batch processing to ensure messages are saved to the database
+	err := db.ForceProcessBatch()
+	if err != nil {
+		t.Fatalf("Failed to process batch: %v", err)
+	}
+
+	// Wait a bit more for any database operations to complete
+	time.Sleep(200 * time.Millisecond)
+
 	// First check what's in the database for debugging
 	rows, err := db.GetDBInstance().Query("SELECT hostname, app_name, procid, msgid, msg, structured_data, severity, facility FROM logs")
 	if err != nil {
@@ -69,6 +79,7 @@ func verifyLogEntry(t *testing.T, tc testCase) {
 			message, structuredData = msg, sd
 			severity, facility = sev, fac
 			found = true
+			break
 		}
 	}
 	if !found {
