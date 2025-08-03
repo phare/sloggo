@@ -1,6 +1,8 @@
 # Stage 1: Build the Go binary
 FROM golang:1.24-alpine AS go-builder
 
+ARG VERSION=dev
+
 ENV CGO_ENABLED=1 \
     CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
     GOOS=linux \
@@ -12,7 +14,8 @@ WORKDIR /app
 COPY backend/ .
 
 RUN go mod download
-RUN go build -o sloggo main.go
+RUN go build -o sloggo main.go \
+    -ldflags "-X sloggo/utils.Version=${VERSION}"
 
 # Stage 2: Build the React frontend
 FROM node:24-alpine AS frontend-builder
