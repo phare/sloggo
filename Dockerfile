@@ -45,6 +45,6 @@ COPY --from=frontend-builder /app/out /app/public
 
 EXPOSE 8080
 EXPOSE 6514
-EXPOSE 514
+EXPOSE 5514
 
 CMD ["./sloggo"]
