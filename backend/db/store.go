@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"sloggo/utils"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -21,6 +23,7 @@ var (
 	batchParams    [][]any
 	maxBatchSize   = 10000
 	checkpointTick = 5 * time.Second
+	cleanupTick    = 15 * time.Minute
 )
 
 func init() {
@@ -64,6 +67,9 @@ func init() {
 
 	// Start the checkpoint process
 	go performCheckpointsPeriodically()
+
+	// Start the log cleanup process
+	go performLogCleanupPeriodically()
 }
 
 // GetDBInstance returns the initialized SQLite database instance.
@@ -157,6 +163,49 @@ func performCheckpointsPeriodically() {
 	for range ticker.C {
 		if err := performCheckpoint(); err != nil {
 			log.Printf("Error in periodic checkpoint: %v", err)
+		}
+	}
+}
+
+// cleanupOldLogs deletes logs older than the retention period
+func cleanupOldLogs() error {
+	// Calculate the cutoff timestamp for deletion (current time - retention period)
+	cutoffTime := time.Now().Add(-time.Duration(utils.LogRetentionMinutes) * time.Minute).UTC().Format(time.RFC3339Nano)
+
+	// Create a query to delete logs older than the cutoff timestamp
+	query := "DELETE FROM logs WHERE timestamp < ?"
+
+	// Execute the deletion
+	result, err := dbInstance.Exec(query, cutoffTime)
+	if err != nil {
+		log.Printf("Failed to delete old logs: %v", err)
+		return err
+	}
+
+	// Log the number of deleted rows
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("Failed to get rows affected by cleanup: %v", err)
+	} else if rowsAffected > 0 {
+		log.Printf("Cleaned up %d log entries older than %s", rowsAffected, cutoffTime)
+	}
+
+	return nil
+}
+
+// performLogCleanupPeriodically runs log cleanup on a timer
+func performLogCleanupPeriodically() {
+	ticker := time.NewTicker(cleanupTick)
+	defer ticker.Stop()
+
+	// Run cleanup immediately at startup
+	if err := cleanupOldLogs(); err != nil {
+		log.Printf("Error in initial log cleanup: %v", err)
+	}
+
+	for range ticker.C {
+		if err := cleanupOldLogs(); err != nil {
+			log.Printf("Error in periodic log cleanup: %v", err)
 		}
 	}
 }
