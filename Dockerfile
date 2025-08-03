@@ -44,6 +44,8 @@ WORKDIR /app
 COPY --from=go-builder /app/sloggo /app/sloggo
 COPY --from=frontend-builder /app/out /app/public
 
+RUN mkdir -p /app/.sqlite
+
 EXPOSE 8080
 EXPOSE 6514
 EXPOSE 5514

@@ -3,19 +3,32 @@ package db
 import (
 	"database/sql"
 	"log"
+	"os"
+	"path"
+	"path/filepath"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
-	dbInstance *sql.DB
-	once       sync.Once
+	dbDirectory string
+	dbInstance  *sql.DB
+	once        sync.Once
 )
 
 func init() {
-	var err error
-	dbInstance, err = sql.Open("sqlite3", "logs.db")
+	e, err := os.Executable()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dbDirectory = filepath.Join(path.Dir(e), "/.sqlite")
+
+	log.Printf("DB DIRECTORY", dbDirectory)
+
+	dbInstance, err = sql.Open("sqlite3", filepath.Join(dbDirectory, "logs.db"))
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite database: %v", err)
 	}
