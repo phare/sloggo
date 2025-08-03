@@ -7,6 +7,7 @@ import (
 	"sloggo/db"
 	"sloggo/formats"
 	"sloggo/utils"
+	"sync"
 	"time"
 
 	"github.com/leodido/go-syslog/v4/rfc5424"
@@ -28,13 +29,34 @@ func StartTCPListener() {
 
 	log.Printf("TCP listener is running on port :%s", port)
 
+	// Use a semaphore to limit concurrent connections
+	maxConcurrentConnections := 100
+	semaphore := make(chan struct{}, maxConcurrentConnections)
+
+	// Create a WaitGroup to track active connections
+	var wg sync.WaitGroup
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("Error accepting TCP connection: %v", err)
 			continue
 		}
-		go handleTCPConnection(conn)
+
+		// Acquire semaphore slot
+		semaphore <- struct{}{}
+
+		// Add to wait group
+		wg.Add(1)
+
+		go func(c net.Conn) {
+			defer func() {
+				// Release resources when done
+				<-semaphore
+				wg.Done()
+			}()
+			handleTCPConnection(c)
+		}(conn)
 	}
 }
 
@@ -98,6 +120,10 @@ func handleTCPConnection(conn net.Conn) {
 
 		// Convert directly to SQL without intermediate format
 		query, params := formats.SyslogMessageToSQL(rfc5424Msg)
-		db.StoreLog(query, params)
+
+		// Store log without blocking if possible
+		if err := db.StoreLog(query, params); err != nil {
+			log.Printf("Error storing log: %v", err)
+		}
 	}
 }

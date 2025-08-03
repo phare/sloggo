@@ -7,6 +7,7 @@ import (
 	"sloggo/formats"
 	"sloggo/utils"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leodido/go-syslog/v4/rfc5424"
@@ -33,12 +34,16 @@ func StartUDPListener() {
 
 	log.Printf("UDP listener is running on port :%s", port)
 
+	// Use a semaphore to limit concurrent message processing
+	maxConcurrentProcessors := 100
+	semaphore := make(chan struct{}, maxConcurrentProcessors)
+
+	// Use a WaitGroup to track active processors
+	var wg sync.WaitGroup
+
 	// Configure a larger buffer for UDP packets
 	const bufferSize = 64 * 1024 // 64KB buffer
 	buffer := make([]byte, bufferSize)
-
-	// Create a parser with best effort mode
-	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
 	for {
 		// Set read deadline for UDP socket
@@ -54,36 +59,68 @@ func StartUDPListener() {
 			continue
 		}
 
-		// Process the input using go-syslog parser
-		input := string(buffer[:n])
+		// Make a copy of the received data to process
+		messageCopy := make([]byte, n)
+		copy(messageCopy, buffer[:n])
 
-		// For UDP, we need to handle each datagram separately
-		// Split by newlines in case multiple messages were sent in one datagram
-		parts := strings.Split(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
+		// Acquire semaphore slot (non-blocking)
+		select {
+		case semaphore <- struct{}{}:
+			// Slot acquired, process the message
+			wg.Add(1)
+			go func(data []byte) {
+				defer func() {
+					// Release resources when done
+					<-semaphore
+					wg.Done()
+				}()
+				processUDPMessage(data)
+			}(messageCopy)
+		default:
+			// Semaphore full, log a warning and continue
+			log.Printf("Warning: UDP message processing at capacity, dropping message")
+		}
+	}
+}
 
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue // Skip empty messages
-			}
+// processUDPMessage handles processing of a single UDP message
+func processUDPMessage(message []byte) {
+	// Create a parser with best effort mode
+	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
-			// Parse the message
-			syslogMsg, err := parser.Parse([]byte(part))
-			if err != nil {
-				log.Printf("Failed to parse UDP message: %v", err)
-				continue
-			}
+	// Process the input using go-syslog parser
+	input := string(message)
 
-			// Convert to RFC5424 syslog message
-			rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
-			if !ok {
-				log.Printf("Parsed UDP message is not a valid RFC5424 message")
-				continue
-			}
+	// For UDP, we need to handle each datagram separately
+	// Split by newlines in case multiple messages were sent in one datagram
+	parts := strings.Split(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
 
-			// Convert directly to SQL without intermediate format
-			query, params := formats.SyslogMessageToSQL(rfc5424Msg)
-			db.StoreLog(query, params)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue // Skip empty messages
+		}
+
+		// Parse the message
+		syslogMsg, err := parser.Parse([]byte(part))
+		if err != nil {
+			log.Printf("Failed to parse UDP message: %v", err)
+			continue
+		}
+
+		// Convert to RFC5424 syslog message
+		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
+		if !ok {
+			log.Printf("Parsed UDP message is not a valid RFC5424 message")
+			continue
+		}
+
+		// Convert directly to SQL without intermediate format
+		query, params := formats.SyslogMessageToSQL(rfc5424Msg)
+
+		// Store log without blocking if possible
+		if err := db.StoreLog(query, params); err != nil {
+			log.Printf("Error storing UDP log: %v", err)
 		}
 	}
 }
