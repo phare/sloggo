@@ -23,7 +23,6 @@ func init() {
 	// Initialize schema
 	query := `
 	CREATE TABLE IF NOT EXISTS logs (
-	    id INTEGER PRIMARY KEY AUTOINCREMENT,
 	    facility INTEGER NOT NULL,
 	    severity INTEGER NOT NULL,
 	    version INTEGER NOT NULL DEFAULT 1,
@@ -84,7 +83,7 @@ func setupDatabase() {
 		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
 	}
 
-	dbInstance, err = sql.Open("sqlite3", dbPath)
+	dbInstance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=OFF&_cache_size=-100000")
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite database: %v", err)
 	}
