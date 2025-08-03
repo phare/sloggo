@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sync"
+	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -14,24 +14,11 @@ import (
 var (
 	dbDirectory string
 	dbInstance  *sql.DB
-	once        sync.Once
 )
 
 func init() {
-	e, err := os.Executable()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	dbDirectory = filepath.Join(path.Dir(e), "/.sqlite")
-
-	log.Printf("DB DIRECTORY", dbDirectory)
-
-	dbInstance, err = sql.Open("sqlite3", filepath.Join(dbDirectory, "logs.db"))
-	if err != nil {
-		log.Fatalf("Failed to connect to SQLite database: %v", err)
-	}
+	// Set up database connection
+	setupDatabase()
 
 	// Initialize schema
 	query := `
@@ -56,7 +43,7 @@ func init() {
 	CREATE INDEX IF NOT EXISTS idx_logs_severity ON logs(severity);
 	`
 
-	if _, err = dbInstance.Exec(query); err != nil {
+	if _, err := dbInstance.Exec(query); err != nil {
 		log.Fatalf("Failed to create logs table: %v", err)
 	}
 
@@ -78,4 +65,27 @@ func StoreLog(query string, params []any) error {
 	}
 
 	return nil
+}
+
+// setupDatabase initializes the database connection
+// Uses in-memory database for tests and file-based for production
+func setupDatabase() {
+	var err error
+	var dbPath string
+
+	if testing.Testing() {
+		dbPath = ":memory:"
+	} else {
+		e, err := os.Executable()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
+	}
+
+	dbInstance, err = sql.Open("sqlite3", dbPath)
+	if err != nil {
+		log.Fatalf("Failed to connect to SQLite database: %v", err)
+	}
 }

@@ -37,17 +37,16 @@ func StartUDPListener() {
 			continue
 		}
 
-		logEntry, err := formats.NewRFC5424Log(string(buffer[:n]))
+		// Process the message
+		message := string(buffer[:n])
+		logMessage, err := formats.NewRFC5424Log(message)
 		if err != nil {
-			log.Printf("Failed to parse log message: %v", err)
+			log.Printf("Failed to process log message: %v", err)
 			continue
 		}
 
-		query, params := logEntry.ToSQL()
+		query, params := logMessage.ToSQL()
 
-		if err := db.StoreLog(query, params); err != nil {
-			log.Printf("Failed to store log message: %v", err)
-			continue
-		}
+		db.StoreLog(query, params)
 	}
 }
