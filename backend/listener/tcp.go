@@ -54,7 +54,7 @@ func handleTCPConnection(conn net.Conn) {
 	// This simplifies our code and handles both \n and \r\n properly
 
 	// Set initial read deadline
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 	for {
 		// Scan for the next message
@@ -73,7 +73,7 @@ func handleTCPConnection(conn net.Conn) {
 		}
 
 		// Reset deadline after successful read
-		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 		// Get the message text
 		message := scanner.Text()
