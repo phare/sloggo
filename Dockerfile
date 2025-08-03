@@ -14,8 +14,9 @@ WORKDIR /app
 COPY backend/ .
 
 RUN go mod download
-RUN go build -o sloggo main.go \
-    -ldflags "-X sloggo/utils.Version=${VERSION}"
+RUN go build \
+    -ldflags "-X sloggo/utils.Version=${VERSION}" \
+    -o sloggo main.go
 
 # Stage 2: Build the React frontend
 FROM node:24-alpine AS frontend-builder
