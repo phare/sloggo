@@ -43,10 +43,10 @@ func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) (string, []any) {
 	// Convert timestamp to string if it exists
 	var timestampStr string
 	if msg.Timestamp != nil {
-		timestampStr = msg.Timestamp.Format(time.RFC3339)
+		timestampStr = msg.Timestamp.Format(time.RFC3339Nano)
 	} else {
 		// Use current time if timestamp is missing
-		timestampStr = time.Now().Format(time.RFC3339)
+		timestampStr = time.Now().Format(time.RFC3339Nano)
 	}
 
 	// Use default values for nil pointers
