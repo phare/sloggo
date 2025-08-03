@@ -1,14 +1,14 @@
+import { LEVELS } from "@/constants/levels";
 import {
   ARRAY_DELIMITER,
   RANGE_DELIMITER,
   SLIDER_DELIMITER,
 } from "@/lib/delimiters";
-import { LEVELS } from "@/constants/levels";
 import { z } from "zod";
 
 // RFC 5424 Syslog Schema
 export const columnSchema = z.object({
-  uuid: z.string(),
+  id: z.number(), // SQLite rowid as unique identifier
   facility: z.number().min(0).max(23),
   severity: z.number().min(0).max(7),
   priority: z.number().min(0).max(191), // Calculated: facility * 8 + severity
@@ -77,7 +77,7 @@ export const timelineChartSchema = z.object({
       ...acc,
       [level]: z.number().default(0),
     }),
-    {} as Record<(typeof LEVELS)[number], z.ZodNumber>
+    {} as Record<(typeof LEVELS)[number], z.ZodNumber>,
   ),
   // REMINDER: make sure to have the `timestamp` field in the object
 }) satisfies z.ZodType<BaseChartSchema>;

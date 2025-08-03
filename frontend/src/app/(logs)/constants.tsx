@@ -137,16 +137,18 @@ export const filterFields = [
 
 export const sheetFields = [
   {
-    id: "uuid",
-    label: "Message ID",
+    id: "id",
+    label: "ID",
     type: "readonly",
-    skeletonClassName: "w-64",
+    component: (props) => <span className="font-mono">{props.id}</span>,
+    skeletonClassName: "w-16",
   },
   {
     id: "timestamp",
     label: "Timestamp",
     type: "timerange",
-    component: (props) => format(new Date(props.timestamp), "LLL dd, y HH:mm:ss"),
+    component: (props) =>
+      format(new Date(props.timestamp), "LLL dd, y HH:mm:ss"),
     skeletonClassName: "w-36",
   },
   {
@@ -157,18 +159,47 @@ export const sheetFields = [
       const facility = props.facility;
       const severity = props.severity;
       const facilityNames = [
-        "Kernel", "User", "Mail", "Daemon", "Auth", "Syslog", "LPR", "News",
-        "UUCP", "Cron", "AuthPriv", "FTP", "NTP", "Audit", "Alert", "Clock",
-        "Local0", "Local1", "Local2", "Local3", "Local4", "Local5", "Local6", "Local7"
+        "Kernel",
+        "User",
+        "Mail",
+        "Daemon",
+        "Auth",
+        "Syslog",
+        "LPR",
+        "News",
+        "UUCP",
+        "Cron",
+        "AuthPriv",
+        "FTP",
+        "NTP",
+        "Audit",
+        "Alert",
+        "Clock",
+        "Local0",
+        "Local1",
+        "Local2",
+        "Local3",
+        "Local4",
+        "Local5",
+        "Local6",
+        "Local7",
       ];
       const severityNames = [
-        "Emergency", "Alert", "Critical", "Error", "Warning", "Notice", "Info", "Debug"
+        "Emergency",
+        "Alert",
+        "Critical",
+        "Error",
+        "Warning",
+        "Notice",
+        "Info",
+        "Debug",
       ];
       return (
         <div className="flex flex-col">
           <span className="font-mono">{props.priority}</span>
           <span className="text-sm text-muted-foreground">
-            {facilityNames[facility]} ({facility}) • {severityNames[severity]} ({severity})
+            {facilityNames[facility]} ({facility}) • {severityNames[severity]} (
+            {severity})
           </span>
         </div>
       );
@@ -203,7 +234,9 @@ export const sheetFields = [
     id: "structuredData",
     label: "Structured Data",
     type: "readonly",
-    condition: (props) => props.structuredData !== undefined && Object.keys(props.structuredData).length > 0,
+    condition: (props) =>
+      props.structuredData !== undefined &&
+      Object.keys(props.structuredData).length > 0,
     component: (props) => (
       <KVTabs data={props.structuredData || {}} className="-mt-[22px]" />
     ),
@@ -214,9 +247,7 @@ export const sheetFields = [
     label: "Message",
     type: "readonly",
     component: (props) => (
-      <CopyToClipboardContainer>
-        {props.message}
-      </CopyToClipboardContainer>
+      <CopyToClipboardContainer>{props.message}</CopyToClipboardContainer>
     ),
     className: "flex-col items-start w-full gap-1",
   },

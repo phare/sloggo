@@ -1,3 +1,11 @@
+import { LEVELS } from "@/constants/levels";
+// Note: import from 'nuqs/server' to avoid the "use client" directive
+import {
+  ARRAY_DELIMITER,
+  RANGE_DELIMITER,
+  SLIDER_DELIMITER,
+  SORT_DELIMITER,
+} from "@/lib/delimiters";
 import {
   createParser,
   createSearchParamsCache,
@@ -10,14 +18,6 @@ import {
   parseAsTimestamp,
   type inferParserType,
 } from "nuqs/server";
-// Note: import from 'nuqs/server' to avoid the "use client" directive
-import {
-  ARRAY_DELIMITER,
-  RANGE_DELIMITER,
-  SLIDER_DELIMITER,
-  SORT_DELIMITER,
-} from "@/lib/delimiters";
-import { LEVELS } from "@/constants/levels";
 
 // https://logs.run/i?sort=priority.desc
 
@@ -49,10 +49,10 @@ export const searchParamsParser = {
   start: parseAsInteger.withDefault(0),
   // REQUIRED FOR INFINITE SCROLLING (Live Mode and Load More)
   direction: parseAsStringLiteral(["prev", "next"]).withDefault("next"),
-  cursor: parseAsTimestamp.withDefault(new Date()),
+  cursor: parseAsTimestamp.withDefault(new Date(Date.now() + 5 * 60 * 1000)), // Default to 5 minutes in future to get recent logs
   live: parseAsBoolean.withDefault(false),
-  // REQUIRED FOR SELECTION
-  uuid: parseAsString,
+  // Use SQLite rowid for selection
+  id: parseAsInteger,
 };
 
 export const searchParamsCache = createSearchParamsCache(searchParamsParser);

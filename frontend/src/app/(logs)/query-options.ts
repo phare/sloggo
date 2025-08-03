@@ -27,22 +27,34 @@ export type InfiniteQueryResponse<TData, TMeta = unknown> = {
   nextCursor: number | null;
 };
 
+// Helper to get a cursor that ensures data will be returned
+// For initial load, we use a time in the future to load the most recent logs
+const getInitialCursor = () => {
+  // Set cursor to 3 minutes in the future to ensure we get the most recent logs on initial load
+  return new Date(Date.now() + 3 * 60 * 1000).getTime();
+};
+
 export const dataOptions = (search: SearchParamsType) => {
+  // Create a stable query key that doesn't include the cursor
+  // This prevents duplicate requests when only the cursor changes slightly
+  const { id, live, cursor, ...stableKey } = { ...search };
+  // Using object destructuring instead of delete to avoid TypeScript errors
+
   return infiniteQueryOptions({
-    queryKey: [
-      "data-table",
-      searchParamsSerializer({ ...search, uuid: null, live: null }),
-    ], // remove uuid/live as it would otherwise retrigger a fetch
+    queryKey: ["data-table", searchParamsSerializer(stableKey)], // remove id/live/cursor as they would otherwise retrigger a fetch
+    refetchOnMount: false, // Prevent refetch on component mount
     queryFn: async ({ pageParam }) => {
-      const cursor = new Date(pageParam.cursor);
+      // Ensure cursor is a valid date
+      const cursor = pageParam.cursor ? new Date(pageParam.cursor) : new Date();
       const direction = pageParam.direction as "next" | "prev" | undefined;
-      const serialize = searchParamsSerializer({
-        ...search,
-        cursor,
-        direction,
-        uuid: null,
-        live: null,
-      });
+
+      // For live mode and filtering, we need the most accurate timestamp
+
+      // Use object destructuring to omit id and live properties
+      const { id: _, live: __, ...restParams } = search;
+      const queryParams = { ...restParams, cursor, direction };
+
+      const serialize = searchParamsSerializer(queryParams);
       // Use localhost in development, and window.location.origin in production
       const apiBaseUrl =
         process.env.NODE_ENV === "development"
@@ -50,21 +62,34 @@ export const dataOptions = (search: SearchParamsType) => {
           : window.location.origin;
       const response = await fetch(`${apiBaseUrl}/api/logs${serialize}`);
       const json = await response.json();
-      return SuperJSON.parse<InfiniteQueryResponse<ColumnSchema[], SyslogMeta>>(
-        json,
-      );
+
+      // Process the JSON data to ensure dates are properly parsed
+      if (json.data && Array.isArray(json.data)) {
+        json.data = json.data.map(
+          (item: { timestamp: string | number | Date }) => ({
+            ...item,
+            // Convert timestamp string to Date object
+            timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+          }),
+        );
+      }
+
+      return json as InfiniteQueryResponse<ColumnSchema[], SyslogMeta>;
     },
-    initialPageParam: { cursor: new Date().getTime(), direction: "next" },
+    initialPageParam: { cursor: getInitialCursor(), direction: "prev" },
     getPreviousPageParam: (firstPage, _pages) => {
+      // For previous page, use the previous cursor or null if it doesn't exist
       if (!firstPage.prevCursor) return null;
       return { cursor: firstPage.prevCursor, direction: "prev" };
     },
     getNextPageParam: (lastPage, _pages) => {
+      // For next page, use the next cursor or null if it doesn't exist
       if (!lastPage.nextCursor) return null;
       return { cursor: lastPage.nextCursor, direction: "next" };
     },
-    refetchOnWindowFocus: true, // Enable refetching on window focus to ensure latest data
+    refetchOnWindowFocus: false, // Disable automatic refetching on window focus to prevent unwanted refreshes
     placeholderData: keepPreviousData,
     staleTime: 30000, // 30 seconds before data is considered stale
+    gcTime: 1000 * 60 * 5, // Keep cache for 5 minutes
   });
 };

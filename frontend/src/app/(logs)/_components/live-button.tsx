@@ -28,7 +28,10 @@ export function LiveButton({ fetchPreviousPage }: LiveButtonProps) {
 
     async function fetchData() {
       if (live) {
-        await fetchPreviousPage?.();
+        // For live mode, always fetch with updated cursor
+        await fetchPreviousPage?.({
+          cancelRefetch: false,
+        });
         timeoutId = setTimeout(fetchData, REFRESH_INTERVAL);
       } else {
         clearTimeout(timeoutId);
@@ -51,11 +54,16 @@ export function LiveButton({ fetchPreviousPage }: LiveButtonProps) {
   }, [date, sort]);
 
   function handleClick() {
+    // When activating live mode, update cursor to current time
+    const newLiveState = !live;
     setSearch((prev) => ({
       ...prev,
-      live: !prev.live,
+      live: newLiveState,
+      // Reset date and sort when toggling live mode
       date: null,
       sort: null,
+      // Set cursor to current time when activating live mode
+      cursor: newLiveState ? new Date() : prev.cursor,
     }));
     table.getColumn("timestamp")?.setFilterValue(undefined);
     table.resetSorting();

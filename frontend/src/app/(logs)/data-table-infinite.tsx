@@ -161,11 +161,26 @@ export function DataTableInfinite<TData, TValue, TMeta>({
         Math.ceil(e.currentTarget.scrollTop + e.currentTarget.clientHeight) >=
         e.currentTarget.scrollHeight;
 
-      if (onPageBottom && !isFetching && totalRowsFetched < filterRows) {
+      // Only fetch more data if we're at the bottom, not already fetching,
+      // have more data to fetch, and have some data already
+      if (
+        onPageBottom &&
+        !isFetching &&
+        totalRowsFetched < filterRows &&
+        data.length > 0 &&
+        hasNextPage // Only fetch if there's actually a next page
+      ) {
         fetchNextPage();
       }
     },
-    [fetchNextPage, isFetching, filterRows, totalRowsFetched],
+    [
+      fetchNextPage,
+      isFetching,
+      filterRows,
+      totalRowsFetched,
+      data.length,
+      hasNextPage,
+    ],
   );
 
   React.useEffect(() => {
@@ -212,7 +227,16 @@ export function DataTableInfinite<TData, TValue, TMeta>({
     meta: { getRowClassName },
   });
 
+  // Track if this is the initial render
+  const initialRenderRef = React.useRef(true);
+
   React.useEffect(() => {
+    // Skip updating search params on initial render
+    if (initialRenderRef.current) {
+      initialRenderRef.current = false;
+      return;
+    }
+
     const columnFiltersWithNullable = filterFields.map((field) => {
       const filterValue = columnFilters.find(
         (filter) => filter.id === field.value,
@@ -223,10 +247,13 @@ export function DataTableInfinite<TData, TValue, TMeta>({
 
     const search = columnFiltersWithNullable.reduce(
       (prev, curr) => {
-        prev[curr.id as string] = curr.value;
-        return prev;
+        return { ...prev, [curr.id]: curr.value };
       },
-      {} as Record<string, unknown>,
+      {
+        sort: sorting?.[0] || null,
+        // Update cursor to current time when filters change to ensure fresh results
+        cursor: new Date(),
+      },
     );
 
     setSearch(search);
@@ -435,7 +462,16 @@ export function DataTableInfinite<TData, TValue, TMeta>({
                   scrollMarginTop: "calc(var(--top-bar-height) + 40px)",
                 }}
               >
-                {table.getRowModel().rows?.length ? (
+                {isFetching && data.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      Loading...
+                    </TableCell>
+                  </TableRow>
+                ) : table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => (
                     // REMINDER: if we want to add arrow navigation https://github.com/TanStack/table/discussions/2752#discussioncomment-192558
                     <React.Fragment key={row.id}>
@@ -448,17 +484,14 @@ export function DataTableInfinite<TData, TValue, TMeta>({
                     </React.Fragment>
                   ))
                 ) : (
-                  <React.Fragment>
-                    {renderLiveRow?.()}
-                    <TableRow>
-                      <TableCell
-                        colSpan={columns.length}
-                        className="h-24 text-center"
-                      >
-                        No results.
-                      </TableCell>
-                    </TableRow>
-                  </React.Fragment>
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      No results found.
+                    </TableCell>
+                  </TableRow>
                 )}
                 <TableRow className="hover:bg-transparent data-[state=selected]:bg-transparent">
                   <TableCell colSpan={columns.length} className="text-center">
