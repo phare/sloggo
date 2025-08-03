@@ -3,20 +3,24 @@ package formats
 import (
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/leodido/go-syslog/v4/rfc5424"
 )
 
 // RFC5424Log represents a structured log message in RFC 5424 format.
 type RFC5424Log struct {
-	facility       int
-	severity       int
+	facility       *uint8
+	severity       *uint8
+	priority       *uint8
 	version        int
-	timestamp      string
-	hostname       string
-	appName        string
-	procId         string
-	msgId          string
+	timestamp      *time.Time
+	hostname       *string
+	appName        *string
+	procId         *string
+	msgId          *string
 	structuredData string
-	msg            string
+	msg            *string
 }
 
 // NewRFC5424Log creates a new LogEntry from an RFC 5424 log message.
@@ -24,68 +28,102 @@ func NewRFC5424Log(message string) (*RFC5424Log, error) {
 	// Remove trailing newline if present
 	message = strings.TrimSuffix(message, "\n")
 
-	// Extract and validate PRI
-	if !strings.HasPrefix(message, "<") {
-		return nil, fmt.Errorf("message must start with PRI")
-	}
-	end := strings.Index(message, ">")
-	if end == -1 {
-		return nil, fmt.Errorf("invalid PRI format: missing closing >")
-	}
+	// Create a new parser with best effort mode
+	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
-	var pri int
-	_, err := fmt.Sscanf(message[1:end], "%d", &pri)
+	// Parse the message
+	parsedMessage, err := parser.Parse([]byte(message))
 	if err != nil {
-		return nil, fmt.Errorf("invalid PRI value: %v", err)
-	}
-	message = message[end+1:]
-
-	// Extract version
-	parts := strings.SplitN(strings.TrimSpace(message), " ", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("missing version or other fields")
+		return nil, fmt.Errorf("failed to parse RFC5424 message: %v", err)
 	}
 
-	var version int
-	_, err = fmt.Sscanf(parts[0], "%d", &version)
-	if err != nil {
-		return nil, fmt.Errorf("invalid version value: %v", err)
-	}
-	message = parts[1]
-
-	// Split header fields
-	parts = strings.SplitN(strings.TrimSpace(message), " ", 6)
-	if len(parts) < 6 {
-		return nil, fmt.Errorf("incomplete message header")
+	// Convert to RFC5424 message
+	rfc5424Message, ok := parsedMessage.(*rfc5424.SyslogMessage)
+	if !ok {
+		return nil, fmt.Errorf("parsed message is not a valid RFC5424 message")
 	}
 
-	timestamp := parts[0]
-	hostname := parts[1]
-	appName := parts[2]
-	procId := parts[3]
-	msgId := parts[4]
-	remainder := parts[5]
+	// Extract facility and severity from priority
+	priority := rfc5424Message.Priority
+	if priority == nil {
+		return nil, fmt.Errorf("missing priority in log message")
+	}
 
-	// Handle structured data and message
-	var structuredData, msg string
-	if strings.HasPrefix(remainder, "-") {
-		structuredData = "-"
-		msg = strings.TrimPrefix(remainder, "- ")
+	var facility, severity uint8
+	facility = *priority / 8
+	severity = *priority % 8
+
+	facilityPtr := &facility
+	severityPtr := &severity
+
+	// Get timestamp
+	var timestamp *time.Time
+	if rfc5424Message.Timestamp != nil {
+		timestamp = rfc5424Message.Timestamp
 	} else {
-		endSD := strings.Index(remainder, "] ")
-		if endSD == -1 {
-			return nil, fmt.Errorf("malformed structured data")
-		}
-		structuredData = remainder[:endSD+1]
-		msg = strings.TrimSpace(remainder[endSD+2:])
+		now := time.Now()
+		timestamp = &now
 	}
 
-	facility := pri / 8
-	severity := pri % 8
+	// Extract hostname
+	var hostname *string
+	if rfc5424Message.Hostname != nil {
+		hostname = rfc5424Message.Hostname
+	}
+
+	// Extract app name
+	var appName *string
+	if rfc5424Message.Appname != nil {
+		appName = rfc5424Message.Appname
+	}
+
+	// Extract process ID
+	var procId *string
+	if rfc5424Message.ProcID != nil {
+		procId = rfc5424Message.ProcID
+	}
+
+	// Extract message ID
+	var msgId *string
+	if rfc5424Message.MsgID != nil {
+		msgId = rfc5424Message.MsgID
+	}
+
+	// Extract structured data
+	structuredData := "-"
+	if rfc5424Message.StructuredData != nil && len(*rfc5424Message.StructuredData) > 0 {
+		// Convert structured data to string format
+		parts := make([]string, 0, len(*rfc5424Message.StructuredData))
+		for id, params := range *rfc5424Message.StructuredData {
+			paramStrings := make([]string, 0, len(params))
+			for name, value := range params {
+				paramStrings = append(paramStrings, fmt.Sprintf(`%s="%s"`, name, value))
+			}
+
+			parts = append(parts, fmt.Sprintf("[%s %s]", id, strings.Join(paramStrings, " ")))
+		}
+
+		if len(parts) > 0 {
+			structuredData = strings.Join(parts, "")
+		}
+	}
+
+	// Extract message
+	var msg *string
+	if rfc5424Message.Message != nil {
+		msg = rfc5424Message.Message
+	}
+
+	// Create and return the RFC5424Log struct
+	version := 1
+	if rfc5424Message.Version != 0 {
+		version = int(rfc5424Message.Version)
+	}
 
 	return &RFC5424Log{
-		facility:       facility,
-		severity:       severity,
+		facility:       facilityPtr,
+		severity:       severityPtr,
+		priority:       priority,
 		version:        version,
 		timestamp:      timestamp,
 		hostname:       hostname,
@@ -99,12 +137,18 @@ func NewRFC5424Log(message string) (*RFC5424Log, error) {
 
 // Facility returns the log message facility code.
 func (r *RFC5424Log) Facility() int {
-	return r.facility
+	if r.facility == nil {
+		return 0
+	}
+	return int(*r.facility)
 }
 
 // Severity returns the log message severity level.
 func (r *RFC5424Log) Severity() int {
-	return r.severity
+	if r.severity == nil {
+		return 0
+	}
+	return int(*r.severity)
 }
 
 // Version returns the protocol version.
@@ -113,27 +157,27 @@ func (r *RFC5424Log) Version() int {
 }
 
 // Timestamp returns the message timestamp.
-func (r *RFC5424Log) Timestamp() string {
+func (r *RFC5424Log) Timestamp() *time.Time {
 	return r.timestamp
 }
 
 // Hostname returns the message hostname.
-func (r *RFC5424Log) Hostname() string {
+func (r *RFC5424Log) Hostname() *string {
 	return r.hostname
 }
 
 // AppName returns the application name.
-func (r *RFC5424Log) AppName() string {
+func (r *RFC5424Log) AppName() *string {
 	return r.appName
 }
 
 // ProcID returns the process ID.
-func (r *RFC5424Log) ProcID() string {
+func (r *RFC5424Log) ProcID() *string {
 	return r.procId
 }
 
 // MsgID returns the message ID.
-func (r *RFC5424Log) MsgID() string {
+func (r *RFC5424Log) MsgID() *string {
 	return r.msgId
 }
 
@@ -143,11 +187,11 @@ func (r *RFC5424Log) StructuredData() string {
 }
 
 // Message returns the log message.
-func (r *RFC5424Log) Message() string {
+func (r *RFC5424Log) Message() *string {
 	return r.msg
 }
 
-// ToSQLInsert returns a SQL insert statement and parameters for this log entry.
+// ToSQL returns a SQL insert statement and parameters for this log entry.
 func (r *RFC5424Log) ToSQL() (string, []any) {
 	query := `
 		INSERT INTO logs (
@@ -157,17 +201,49 @@ func (r *RFC5424Log) ToSQL() (string, []any) {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
+	// Convert timestamp to string if it exists
+	var timestampStr string
+	if r.timestamp != nil {
+		timestampStr = r.timestamp.Format(time.RFC3339)
+	}
+
+	// Use default values for nil pointers
+	hostname := "-"
+	if r.hostname != nil {
+		hostname = *r.hostname
+	}
+
+	appName := "-"
+	if r.appName != nil {
+		appName = *r.appName
+	}
+
+	procId := "-"
+	if r.procId != nil {
+		procId = *r.procId
+	}
+
+	msgId := "-"
+	if r.msgId != nil {
+		msgId = *r.msgId
+	}
+
+	msg := ""
+	if r.msg != nil {
+		msg = *r.msg
+	}
+
 	params := []any{
-		r.facility,
-		r.severity,
+		r.Facility(),
+		r.Severity(),
 		r.version,
-		r.timestamp,
-		r.hostname,
-		r.appName,
-		r.procId,
-		r.msgId,
+		timestampStr,
+		hostname,
+		appName,
+		procId,
+		msgId,
 		r.structuredData,
-		r.msg,
+		msg,
 	}
 
 	return query, params

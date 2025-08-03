@@ -55,20 +55,15 @@ func handleTCPConnection(conn net.Conn) {
 		return
 	}
 
+	// Process and store the message
 	message := string(buffer[:n])
-
-	// Parse the log message as RFC5424
-	logEntry, err := formats.NewRFC5424Log(message)
+	logMessage, err := formats.NewRFC5424Log(message)
 	if err != nil {
-		log.Printf("Failed to parse log message: %v", err)
+		log.Printf("Failed to process log message: %v", err)
 		return
 	}
 
-	query, params := logEntry.ToSQL()
+	query, params := logMessage.ToSQL()
 
-	// Store the log in the database
-	if err := db.StoreLog(query, params); err != nil {
-		log.Printf("Failed to store log message: %v", err)
-		return
-	}
+	db.StoreLog(query, params)
 }
