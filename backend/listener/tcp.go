@@ -1,12 +1,15 @@
 package listener
 
 import (
+	"bufio"
 	"log"
 	"net"
 	"sloggo/db"
 	"sloggo/formats"
 	"sloggo/utils"
 	"time"
+
+	"github.com/leodido/go-syslog/v4/rfc5424"
 )
 
 func StartTCPListener() {
@@ -35,35 +38,66 @@ func StartTCPListener() {
 	}
 }
 
+// handleTCPConnection handles a TCP connection
 func handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 
-	// Set read deadline to prevent hanging
-	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		log.Printf("Error setting read deadline: %v", err)
-		return
-	}
+	scanner := bufio.NewScanner(conn)
+	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
-	buffer := make([]byte, 1024)
-	n, err := conn.Read(buffer)
-	if err != nil {
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			log.Printf("Connection read timed out")
-		} else {
-			log.Printf("Error reading from TCP connection: %v", err)
+	// Configure scanner with a larger buffer for bigger messages
+	const maxScanSize = 1024 * 1024 // 1MB max message size
+	buffer := make([]byte, 0, 64*1024)
+	scanner.Buffer(buffer, maxScanSize)
+
+	// Use the default ScanLines function which already handles newlines
+	// This simplifies our code and handles both \n and \r\n properly
+
+	// Set initial read deadline
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+	for {
+		// Scan for the next message
+		if !scanner.Scan() {
+			// Check for errors
+			if err := scanner.Err(); err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					// Just a timeout, reset deadline and try again
+					conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+					continue
+				}
+				log.Printf("TCP connection closed: %v", err)
+			}
+			// EOF or error occurred
+			return
 		}
-		return
+
+		// Reset deadline after successful read
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+		// Get the message text
+		message := scanner.Text()
+		if message == "" {
+			// Skip empty messages (like keepalives)
+			continue
+		}
+
+		// Parse the message
+		syslogMsg, err := parser.Parse([]byte(message))
+		if err != nil {
+			log.Printf("Failed to parse message: %v", err)
+			continue
+		}
+
+		// Convert to RFC5424 syslog message
+		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
+		if !ok {
+			log.Printf("Parsed message is not a valid RFC5424 message")
+			continue
+		}
+
+		// Convert directly to SQL without intermediate format
+		query, params := formats.SyslogMessageToSQL(rfc5424Msg)
+		db.StoreLog(query, params)
 	}
-
-	// Process and store the message
-	message := string(buffer[:n])
-	logMessage, err := formats.NewRFC5424Log(message)
-	if err != nil {
-		log.Printf("Failed to process log message: %v", err)
-		return
-	}
-
-	query, params := logMessage.ToSQL()
-
-	db.StoreLog(query, params)
 }
