@@ -96,9 +96,6 @@ func (s *Server) setupRoutes() {
 			cursor = time.Now()
 		}
 
-		// Log the parsed cursor for debugging
-		log.Printf("Parsed cursor: %v", cursor)
-
 		// Direction for pagination
 		direction := query.Get("direction")
 		if direction == "" {
@@ -238,21 +235,15 @@ func (s *Server) setupRoutes() {
 			return
 		}
 
-		log.Printf("Retrieved %d logs from database", len(logs))
-
 		// Process logs for API response format
 		for i := range logs {
-			// Parse structured data if present
-			structData := make(map[string]string)
-			if logs[i].StructuredData != "" {
-				// Simple parsing - in real implementation would need proper parsing
-				// of the RFC5424 structured data format
-				pairs := strings.Split(logs[i].StructuredData, " ")
-				for _, pair := range pairs {
-					kv := strings.SplitN(pair, "=", 2)
-					if len(kv) == 2 {
-						structData[kv[0]] = strings.Trim(kv[1], "\"")
-					}
+			// Parse structured data JSON if present
+			structData := make(map[string]map[string]string)
+
+			if logs[i].StructuredData != "" && logs[i].StructuredData != "-" {
+				// Attempt to parse the JSON data
+				if err := json.Unmarshal([]byte(logs[i].StructuredData), &structData); err != nil {
+					log.Printf("Error parsing structured data for row %d", logs[i].RowID)
 				}
 			}
 
@@ -296,7 +287,7 @@ func (s *Server) setupRoutes() {
 				FilterRowCount: filterCount,
 				ChartData:      chartData,
 				Facets:         facets,
-				Metadata:       map[string]interface{}{},
+				Metadata:       map[string]any{},
 			},
 			NextCursor: nextCursor,
 			PrevCursor: prevCursor,
