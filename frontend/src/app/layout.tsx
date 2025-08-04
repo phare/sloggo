@@ -1,32 +1,16 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import PlausibleProvider from "next-plausible";
-import { ReactQueryProvider } from "@/providers/react-query";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "@/components/ui/sonner";
-import { GeistSans } from "geist/font/sans";
+import { ReactQueryProvider } from "@/providers/react-query";
 import { GeistMono } from "geist/font/mono";
-
-const TITLE = "Sloggo";
-const DESCRIPTION = "Minimalist logging receiver and viewer tool";
+import { GeistSans } from "geist/font/sans";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://data-table.openstatus.dev"),
-  title: TITLE,
-  description: DESCRIPTION,
-  twitter: {
-    images: ["/assets/data-table-infinite.png"],
-    card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-  openGraph: {
-    type: "website",
-    images: ["/assets/data-table-infinite.png"],
-    title: TITLE,
-    description: DESCRIPTION,
-  },
+  title: "Sloggo",
+  description:
+    "Minimal RFC 5424 syslog collector and viewer. SQLite-backed. Runs as a single, resource-friendly process.",
 };
 
 export default function RootLayout({
@@ -50,20 +34,14 @@ export default function RootLayout({
         </head>
       ) : null}
       <body className="min-h-screen bg-background antialiased">
-        <PlausibleProvider domain="data-table.openstatus.dev">
-          <ReactQueryProvider>
-            <NuqsAdapter>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-              >
-                {children}
-                <Toaster richColors />
-              </ThemeProvider>
-            </NuqsAdapter>
-          </ReactQueryProvider>
-        </PlausibleProvider>
+        <ReactQueryProvider>
+          <NuqsAdapter>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              {children}
+              <Toaster richColors />
+            </ThemeProvider>
+          </NuqsAdapter>
+        </ReactQueryProvider>
       </body>
     </html>
   );
