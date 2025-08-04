@@ -4,11 +4,9 @@ const net = require("net");
 const CONFIG = {
   HOST: "localhost",
   PORT: 6514, // TCP syslog port
-  NUM_LOGS: 10000,
-  BATCH_SIZE: 100,
-  DELAY_BETWEEN_BATCHES: 100, // ms
-  RECONNECT_DELAY: 1000, // ms
-  MAX_RETRIES: 3,
+  DAYS: 60,
+  MIN_LOGS_PER_DAY: 100,
+  MAX_LOGS_PER_DAY: 1000,
   KEEPALIVE_DELAY: 1000, // ms
 };
 
@@ -275,23 +273,12 @@ function generateLogEntry(timestamp) {
   return `<${pri}>1 ${formatDate(timestamp)} ${host} ${app} ${procId} ${msgId} ${structData} ${msg}\n`;
 }
 
-async function sendBatch(client, batch, attempt = 0) {
-  const maxAttempts = 3;
+async function sendBatch(client, batch) {
   try {
     await client.write(batch.join(""));
     return true;
   } catch (error) {
-    if (attempt < maxAttempts) {
-      console.log(`Retrying batch (attempt ${attempt + 1}/${maxAttempts})...`);
-      try {
-        await client.connect();
-        return await sendBatch(client, batch, attempt + 1);
-      } catch (reconnectError) {
-        console.error("Reconnection failed:", reconnectError.message);
-        return false;
-      }
-    }
-    console.error("Failed to send batch after max attempts");
+    console.error("Failed to send batch:", error.message);
     return false;
   }
 }
@@ -305,36 +292,51 @@ async function main() {
     console.log("Connected to syslog server");
 
     let logsSent = 0;
-    const startTime = new Date();
-    const timeSpan = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    const totalLogsToGenerate = [];
+    const now = new Date();
 
-    while (logsSent < CONFIG.NUM_LOGS && successful) {
-      const batch = [];
-      for (
-        let i = 0;
-        i < CONFIG.BATCH_SIZE && logsSent < CONFIG.NUM_LOGS;
-        i++
-      ) {
-        const timestamp = new Date(startTime - Math.random() * timeSpan);
-        batch.push(generateLogEntry(timestamp));
-        logsSent++;
-      }
+    // Generate logs for each day in the last CONFIG.DAYS days
+    for (let day = 0; day < CONFIG.DAYS; day++) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - day);
 
-      successful = await sendBatch(client, batch);
-      if (successful) {
-        console.log(`Progress: ${logsSent}/${CONFIG.NUM_LOGS} logs sent`);
-        if (logsSent < CONFIG.NUM_LOGS) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, CONFIG.DELAY_BETWEEN_BATCHES),
-          );
-        }
+      // Start of the day
+      date.setHours(0, 0, 0, 0);
+
+      // Random number of logs for this day
+      const logsForDay = randomInt(
+        CONFIG.MIN_LOGS_PER_DAY,
+        CONFIG.MAX_LOGS_PER_DAY,
+      );
+
+      for (let i = 0; i < logsForDay; i++) {
+        // Random time during the day
+        const timestamp = new Date(date);
+        timestamp.setSeconds(
+          timestamp.getSeconds() + randomInt(0, 24 * 60 * 60 - 1),
+        );
+        totalLogsToGenerate.push(timestamp);
       }
     }
 
+    // Sort logs by timestamp (oldest first)
+    totalLogsToGenerate.sort((a, b) => a - b);
+
+    const totalLogs = totalLogsToGenerate.length;
+    console.log(`Generating ${totalLogs} logs across ${CONFIG.DAYS} days`);
+
+    const batch = [];
+    for (const timestamp of totalLogsToGenerate) {
+      batch.push(generateLogEntry(timestamp));
+      logsSent++;
+    }
+
+    successful = await sendBatch(client, batch);
+
     if (successful) {
-      console.log("All logs sent successfully");
+      console.log(`Successfully sent ${logsSent} logs`);
     } else {
-      console.error("Failed to send all logs");
+      console.error("Failed to send logs");
       process.exit(1);
     }
   } catch (error) {
