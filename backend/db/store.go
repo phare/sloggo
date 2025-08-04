@@ -55,8 +55,8 @@ type FacetMetadata struct {
 
 // FacetRow represents a single row in facet metadata
 type FacetRow struct {
-	Value interface{} `json:"value"`
-	Total int         `json:"total"`
+	Value any `json:"value"`
+	Total int `json:"total"`
 }
 
 func init() {
@@ -252,12 +252,12 @@ func performLogCleanupPeriodically() {
 }
 
 // GetLogs retrieves logs from the database based on filters
-func GetLogs(limit int, cursor time.Time, direction string, filters map[string]interface{}, sortField string, sortOrder string) ([]models.LogEntry, int, int, error) {
+func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, int, int, error) {
 	// Build query
 	queryBuilder := strings.Builder{}
 	countQueryBuilder := strings.Builder{}
 	filterQueryBuilder := strings.Builder{}
-	args := []interface{}{}
+	args := []any{}
 
 	// Start the main query
 	queryBuilder.WriteString("SELECT rowid, facility, severity, timestamp, hostname, app_name, procid, msgid, structured_data, msg FROM logs ")
@@ -282,11 +282,7 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]i
 	if sortField != "" && sortOrder != "" {
 		queryBuilder.WriteString(fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder))
 	} else {
-		if direction == "prev" {
-			queryBuilder.WriteString(" ORDER BY timestamp ASC")
-		} else {
-			queryBuilder.WriteString(" ORDER BY timestamp DESC")
-		}
+		queryBuilder.WriteString(" ORDER BY timestamp DESC")
 	}
 
 	// Add limit
@@ -359,12 +355,12 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]i
 		// No logs found with cursor, falling back to most recent logs
 
 		// Clear the args and build a new query to get the most recent logs
-		args = []interface{}{}
+		args = []any{}
 		queryBuilder.Reset()
 		queryBuilder.WriteString("SELECT rowid, facility, severity, timestamp, hostname, app_name, procid, msgid, structured_data, msg FROM logs ")
 
 		// Use only the non-timestamp filters
-		modifiedFilters := make(map[string]interface{})
+		modifiedFilters := make(map[string]any)
 		for k, v := range filters {
 			if k != "startDate" && k != "endDate" {
 				modifiedFilters[k] = v
@@ -430,7 +426,7 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]i
 }
 
 // GetFacets retrieves facet metadata for filtering
-func GetFacets(filters map[string]interface{}) (map[string]FacetMetadata, error) {
+func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	facets := make(map[string]FacetMetadata)
 
 	// Get hostname facets
@@ -509,14 +505,14 @@ func GetFacets(filters map[string]interface{}) (map[string]FacetMetadata, error)
 }
 
 // GetChartData retrieves time-series data for charts
-func GetChartData(filters map[string]interface{}) ([]ChartDataPoint, error) {
+func GetChartData(filters map[string]any) ([]ChartDataPoint, error) {
 	// Define time ranges for chart data (e.g., last 24 hours with hourly points)
 	endTime := time.Now()
 	startTime := endTime.Add(-24 * time.Hour)
 
 	// Build query for chart data
 	queryBuilder := strings.Builder{}
-	args := []interface{}{}
+	args := []any{}
 
 	queryBuilder.WriteString(`
 		SELECT
@@ -582,14 +578,14 @@ func GetChartData(filters map[string]interface{}) ([]ChartDataPoint, error) {
 }
 
 // Helper function to get facet values
-func getFacetValues(field string, filters map[string]interface{}, limit int) ([]FacetRow, error) {
+func getFacetValues(field string, filters map[string]any, limit int) ([]FacetRow, error) {
 	queryBuilder := strings.Builder{}
-	args := []interface{}{}
+	args := []any{}
 
 	queryBuilder.WriteString(fmt.Sprintf("SELECT %s as value, COUNT(*) as total FROM logs", field))
 
 	// Add WHERE clause for filtering, excluding filter on the current field
-	tempFilters := make(map[string]interface{})
+	tempFilters := make(map[string]any)
 	for k, v := range filters {
 		if k != field && k != fmt.Sprintf("%sMin", field) && k != fmt.Sprintf("%sMax", field) {
 			tempFilters[k] = v
@@ -635,9 +631,9 @@ func getFacetValues(field string, filters map[string]interface{}, limit int) ([]
 }
 
 // Helper function to get min/max values for a field
-func getMinMaxValues(field string, filters map[string]interface{}) ([]*int, error) {
+func getMinMaxValues(field string, filters map[string]any) ([]*int, error) {
 	queryBuilder := strings.Builder{}
-	args := []interface{}{}
+	args := []any{}
 
 	// Fix the SQL syntax by removing the "as" keyword in the field parameter
 	// and using direct column aliases instead
@@ -670,7 +666,7 @@ func getMinMaxValues(field string, filters map[string]interface{}) ([]*int, erro
 }
 
 // Helper function to build WHERE clause from filters
-func buildWhereClause(filters map[string]interface{}, cursor time.Time, direction string, args *[]interface{}) string {
+func buildWhereClause(filters map[string]any, cursor time.Time, direction string, args *[]any) string {
 	conditions := []string{}
 
 	// Add timestamp condition for pagination
