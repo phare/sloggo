@@ -1,10 +1,8 @@
-<p align="center"><img src="/sloggo-logo.png" width="300" alt="Sloggo Logo"></p>
-
-<br />
+<p align="center"><img src="/sloggo-logo.png" width="200" alt="Sloggo Logo"></p>
 
 <h1 align="center">Sloggo</h1>
 <p align="center">
-<a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build" alt="Build"></a>
+<a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build.yml" alt="Build"></a>
 <a href="https://github.com/phare/sloggo/tags"><img src="https://img.shields.io/github/v/tag/phare/sloggo" alt="Version"></a>
 <a href="https://github.com/phare/sloggo?tab=MIT-1-ov-file#readme"><img src="https://img.shields.io/github/license/phare/sloggo" alt="License"></a>
 </p>
