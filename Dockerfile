@@ -28,11 +28,12 @@ WORKDIR /app
 # Copy only dependency files first for better caching
 COPY frontend/pnpm-lock.yaml frontend/package.json ./
 
-RUN pnpm fetch --prod
+RUN pnpm fetch
 
 COPY frontend/ .
 
-RUN pnpm install --offline --prod
+RUN pnpm install --offline
+RUN pnpm exec next telemetry disable
 RUN pnpm build
 
 # Stage 3: Create the final slim image
