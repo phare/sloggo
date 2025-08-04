@@ -264,7 +264,12 @@ export const columns: ColumnDef<ColumnSchema>[] = [
       return (
         <TextWithTooltip
           text={Object.entries(value)
-            .map(([k, v]) => `${k}=${v}`)
+            .map(
+              ([sdId, kvPairs]) =>
+                `${sdId}:{${Object.entries(kvPairs || {})
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join(", ")}}`,
+            )
             .join(", ")}
         />
       );

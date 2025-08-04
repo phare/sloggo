@@ -237,9 +237,19 @@ export const sheetFields = [
     condition: (props) =>
       props.structuredData !== undefined &&
       Object.keys(props.structuredData).length > 0,
-    component: (props) => (
-      <KVTabs data={props.structuredData || {}} className="-mt-[22px]" />
-    ),
+    component: (props) => {
+      // Render a separate section for each sd-id
+      return (
+        <div className="mt-0.5 flex w-full flex-col gap-4">
+          {Object.entries(props.structuredData || {}).map(([sdId, kvPairs]) => (
+            <div key={sdId} className="flex w-full flex-col gap-1">
+              <div className="text-left text-sm font-medium">{sdId}</div>
+              <KVTabs data={kvPairs} className="-mt-[22px]" />
+            </div>
+          ))}
+        </div>
+      );
+    },
     className: "flex-col items-start w-full gap-1",
   },
   {

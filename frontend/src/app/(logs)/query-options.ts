@@ -47,14 +47,14 @@ export const dataOptions = (search: SearchParamsType) => {
       // Ensure cursor is a valid date
       const cursor = pageParam.cursor ? new Date(pageParam.cursor) : new Date();
       const direction = pageParam.direction as "next" | "prev" | undefined;
+      const serialize = searchParamsSerializer({
+        ...search,
+        cursor,
+        direction,
+        id: null,
+        live: null,
+      });
 
-      // For live mode and filtering, we need the most accurate timestamp
-
-      // Use object destructuring to omit id and live properties
-      const { id: _, live: __, ...restParams } = search;
-      const queryParams = { ...restParams, cursor, direction };
-
-      const serialize = searchParamsSerializer(queryParams);
       // Use localhost in development, and window.location.origin in production
       const apiBaseUrl =
         process.env.NODE_ENV === "development"
@@ -76,7 +76,7 @@ export const dataOptions = (search: SearchParamsType) => {
 
       return json as InfiniteQueryResponse<ColumnSchema[], SyslogMeta>;
     },
-    initialPageParam: { cursor: getInitialCursor(), direction: "prev" },
+    initialPageParam: { cursor: new Date().getTime(), direction: "next" },
     getPreviousPageParam: (firstPage, _pages) => {
       // For previous page, use the previous cursor or null if it doesn't exist
       if (!firstPage.prevCursor) return null;
@@ -87,9 +87,8 @@ export const dataOptions = (search: SearchParamsType) => {
       if (!lastPage.nextCursor) return null;
       return { cursor: lastPage.nextCursor, direction: "next" };
     },
-    refetchOnWindowFocus: false, // Disable automatic refetching on window focus to prevent unwanted refreshes
+    refetchOnWindowFocus: true, // Enable refetching on window focus to ensure latest data
     placeholderData: keepPreviousData,
     staleTime: 30000, // 30 seconds before data is considered stale
-    gcTime: 1000 * 60 * 5, // Keep cache for 5 minutes
   });
 };

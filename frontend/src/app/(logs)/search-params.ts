@@ -49,7 +49,7 @@ export const searchParamsParser = {
   start: parseAsInteger.withDefault(0),
   // REQUIRED FOR INFINITE SCROLLING (Live Mode and Load More)
   direction: parseAsStringLiteral(["prev", "next"]).withDefault("next"),
-  cursor: parseAsTimestamp.withDefault(new Date(Date.now() + 5 * 60 * 1000)), // Default to 5 minutes in future to get recent logs
+  cursor: parseAsTimestamp.withDefault(new Date()),
   live: parseAsBoolean.withDefault(false),
   // Use SQLite rowid for selection
   id: parseAsInteger,

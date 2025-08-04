@@ -17,7 +17,7 @@ export const columnSchema = z.object({
   appName: z.string(),
   procId: z.string(),
   msgId: z.string(),
-  structuredData: z.record(z.string()).optional(),
+  structuredData: z.record(z.record(z.string())).optional(),
   message: z.string(),
   level: z.enum(LEVELS), // Derived from severity
 });

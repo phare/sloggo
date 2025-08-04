@@ -1,5 +1,6 @@
 "use client";
 
+import { log } from "node:console";
 import { useHotKey } from "@/hooks/use-hot-key";
 import { getLevelRowClassName } from "@/lib/request/level";
 import { cn } from "@/lib/utils";
@@ -28,9 +29,6 @@ export function Client() {
   } = useInfiniteQuery(dataOptions(search));
   useResetFocus();
 
-  // We don't need to automatically retry when there's no data
-  // This was causing duplicate API calls
-
   const flatData = React.useMemo(
     () => data?.pages?.flatMap((page) => page.data ?? []) ?? [],
     [data?.pages],
@@ -50,11 +48,11 @@ export function Client() {
   const { sort, start, size, id, cursor, direction, live, ...filter } = search;
 
   // Track whether filters are applied
-  const hasActiveFilters = React.useMemo(() => {
-    return Object.values(filter).some(
-      (value) => value !== null && value !== undefined,
-    );
-  }, [filter]);
+  // const hasActiveFilters = React.useMemo(() => {
+  //   return Object.values(filter).some(
+  //     (value) => value !== null && value !== undefined,
+  //   );
+  // }, [filter]);
 
   // REMINDER: this is currently needed for the cmdk search
   // TODO: auto search via API when the user changes the filter instead of hardcoded
@@ -86,31 +84,31 @@ export function Client() {
   }, [facets]);
 
   // Use a stable reference to track when filters change
-  const filtersRef = React.useRef<typeof filter>(filter);
-  const initialRenderRef = React.useRef(true);
+  // const filtersRef = React.useRef<typeof filter>(filter);
+  // const initialRenderRef = React.useRef(true);
 
-  React.useEffect(() => {
-    // Skip the initial render
-    if (initialRenderRef.current) {
-      initialRenderRef.current = false;
-      filtersRef.current = filter;
-      return;
-    }
+  // React.useEffect(() => {
+  //   // Skip the initial render
+  //   if (initialRenderRef.current) {
+  //     initialRenderRef.current = false;
+  //     filtersRef.current = filter;
+  //     return;
+  //   }
 
-    // Check if filters actually changed
-    const filterChanged = Object.entries(filter).some(([key, value]) => {
-      const currentKey = key as keyof typeof filter;
-      const currentValue = filtersRef.current[currentKey];
-      // Simple equality check with null/undefined safety
-      return JSON.stringify(currentValue) !== JSON.stringify(value);
-    });
+  //   // Check if filters actually changed
+  //   const filterChanged = Object.entries(filter).some(([key, value]) => {
+  //     const currentKey = key as keyof typeof filter;
+  //     const currentValue = filtersRef.current[currentKey];
+  //     // Simple equality check with null/undefined safety
+  //     return JSON.stringify(currentValue) !== JSON.stringify(value);
+  //   });
 
-    // Only refetch if filters changed
-    if (filterChanged) {
-      refetch();
-      filtersRef.current = filter;
-    }
-  }, [filter, refetch]);
+  //   // Only refetch if filters changed
+  //   if (filterChanged) {
+  //     refetch();
+  //     filtersRef.current = filter;
+  //   }
+  // }, [filter, refetch]);
 
   return (
     <DataTableInfinite
@@ -172,7 +170,6 @@ function useResetFocus() {
   }, ".");
 }
 
-// TODO: make a BaseObject (incl. id, date and timestamps for every upcoming branch of infinite table)
 export function useLiveMode<TData extends { timestamp: Date; id: number }>(
   data: TData[],
 ) {
@@ -182,14 +179,9 @@ export function useLiveMode<TData extends { timestamp: Date; id: number }>(
     live ? new Date().getTime() : undefined,
   );
 
-  // Update timestamp whenever live mode changes
   React.useEffect(() => {
-    if (live) {
-      // Always use current time when live mode is activated
-      liveTimestamp.current = new Date().getTime();
-    } else {
-      liveTimestamp.current = undefined;
-    }
+    if (live) liveTimestamp.current = new Date().getTime();
+    else liveTimestamp.current = undefined;
   }, [live]);
 
   const anchorRow = React.useMemo(() => {
