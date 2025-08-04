@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 
 		// Pagination parameters
 		size := 50
+    
 		if sizeStr := query.Get("size"); sizeStr != "" {
 			if parsedSize, err := strconv.Atoi(sizeStr); err == nil && parsedSize > 0 {
 				size = parsedSize
@@ -214,6 +215,7 @@ func (s *Server) setupRoutes() {
 			return
 		}
 
+
 		// Get facets for filtering
 		facets, err := db.GetFacets(filters)
 		if err != nil {
@@ -229,6 +231,7 @@ func (s *Server) setupRoutes() {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
+
 
 		// Process logs for API response format
 		for i := range logs {

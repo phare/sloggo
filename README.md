@@ -1,4 +1,4 @@
-<p align="center"><img src="/sloggo-logo.png" width="400" alt="Sloggo Logo"></p>
+<p align="center"><img src="/sloggo-logo.png" width="300" alt="Sloggo Logo"></p>
 
 <p align="center">
 <a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build" alt="Build"></a>
@@ -53,6 +53,7 @@ The following environment variables can be used to configure the application:
 - `SLOGGO_TCP_PORT`: Port for the TCP Syslog listener (default: `6514`).
 - `SLOGGO_API_PORT`: Port for the API (default: `8080`).
 - `SLOGGO_LOG_RETENTION_MINUTES`: Duration in minutes to keep logs before deletion (default: `43200` - 30 days).
+
 
 ## Contributing
 

@@ -25,7 +25,6 @@ func init() {
 	UdpPort = GetSanitizedEnvString("SLOGGO_UDP_PORT", "5514")
 	TcpPort = GetSanitizedEnvString("SLOGGO_TCP_PORT", "6514")
 	ApiPort = GetSanitizedEnvString("SLOGGO_API_PORT", "8080")
-
 	LogRetentionMinutes = GetSanitizedEnvInt64("SLOGGO_LOG_RETENTION_MINUTES", 30*24*60) // Default to 30 days
 }
 
