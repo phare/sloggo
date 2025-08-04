@@ -26,7 +26,7 @@ func init() {
 	TcpPort = GetSanitizedEnvString("SLOGGO_TCP_PORT", "6514")
 	ApiPort = GetSanitizedEnvString("SLOGGO_API_PORT", "8080")
 
-	LogRetentionMinutes = GetSanitizedEnvInt64("SLOGGO_LOG_RETENTION_MINUTES", 3*24*60) // Default to 3 days
+	LogRetentionMinutes = GetSanitizedEnvInt64("SLOGGO_LOG_RETENTION_MINUTES", 30*24*60) // Default to 30 days
 }
 
 func GetSanitizedEnvString(key string, defaultValue string) string {
