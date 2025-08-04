@@ -3,6 +3,7 @@ package formats
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/leodido/go-syslog/v4/rfc5424"
