@@ -35,7 +35,7 @@ jobs:
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
-          path: ~/.pnpm-store
+          path: frontend/.pnpm-store
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
