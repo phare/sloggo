@@ -33,7 +33,7 @@ type InfiniteQueryMeta struct {
 	FilterRowCount int                         `json:"filterRowCount"`
 	ChartData      []db.ChartDataPoint         `json:"chartData"`
 	Facets         map[string]db.FacetMetadata `json:"facets"`
-	Metadata       map[string]interface{}      `json:"metadata,omitempty"`
+	Metadata       map[string]any              `json:"metadata,omitempty"`
 }
 
 // Using db.ChartDataPoint type instead of redefining it here
@@ -75,7 +75,8 @@ func (s *Server) setupRoutes() {
 		query := r.URL.Query()
 
 		// Pagination parameters
-		size := 40
+		size := 50
+    
 		if sizeStr := query.Get("size"); sizeStr != "" {
 			if parsedSize, err := strconv.Atoi(sizeStr); err == nil && parsedSize > 0 {
 				size = parsedSize
@@ -84,29 +85,35 @@ func (s *Server) setupRoutes() {
 
 		// Parse cursor (timestamp) for pagination
 		var cursor time.Time
+		now := time.Now()
+
 		if cursorStr := query.Get("cursor"); cursorStr != "" {
 			if parsedCursor, err := strconv.ParseInt(cursorStr, 10, 64); err == nil {
-				cursor = time.Unix(0, parsedCursor*int64(time.Millisecond))
+				cursorTime := time.Unix(0, parsedCursor*int64(time.Millisecond))
+				if cursorTime.After(now) {
+					cursor = now
+				} else {
+					cursor = cursorTime
+				}
 			} else {
 				// Use current time if parsing fails
-				cursor = time.Now()
+				cursor = now
 			}
 		} else {
 			// Default to current time if no cursor provided
-			cursor = time.Now()
+			cursor = now
 		}
-
-		// Log the parsed cursor for debugging
-		log.Printf("Parsed cursor: %v", cursor)
 
 		// Direction for pagination
 		direction := query.Get("direction")
 		if direction == "" {
 			direction = "next"
+		} else if direction != "next" && direction != "prev" {
+			direction = "next"
 		}
 
 		// Filters
-		filters := make(map[string]interface{})
+		filters := make(map[string]any)
 
 		// Level filter
 		if levelStr := query.Get("level"); levelStr != "" {
@@ -208,19 +215,6 @@ func (s *Server) setupRoutes() {
 			return
 		}
 
-		// If no logs were returned and we're using 'prev' direction (which is for initial load),
-		// try again with 'next' direction from the oldest possible time to get at least some data
-		// If no logs were found and we're using 'prev' direction (which is for initial load),
-		// try again with 'next' direction from the oldest possible time to get at least some data
-		if len(logs) == 0 && direction == "prev" {
-			oldCursor := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC) // Unix epoch start
-			logs, totalCount, filterCount, err = db.GetLogs(size, oldCursor, "next", filters, sortField, sortOrder)
-			if err != nil {
-				log.Printf("Error fetching logs with fallback: %v", err)
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-		}
 
 		// Get facets for filtering
 		facets, err := db.GetFacets(filters)
@@ -238,21 +232,16 @@ func (s *Server) setupRoutes() {
 			return
 		}
 
-		log.Printf("Retrieved %d logs from database", len(logs))
 
 		// Process logs for API response format
 		for i := range logs {
-			// Parse structured data if present
-			structData := make(map[string]string)
-			if logs[i].StructuredData != "" {
-				// Simple parsing - in real implementation would need proper parsing
-				// of the RFC5424 structured data format
-				pairs := strings.Split(logs[i].StructuredData, " ")
-				for _, pair := range pairs {
-					kv := strings.SplitN(pair, "=", 2)
-					if len(kv) == 2 {
-						structData[kv[0]] = strings.Trim(kv[1], "\"")
-					}
+			// Parse structured data JSON if present
+			structData := make(map[string]map[string]string)
+
+			if logs[i].StructuredData != "" && logs[i].StructuredData != "-" {
+				// Attempt to parse the JSON data
+				if err := json.Unmarshal([]byte(logs[i].StructuredData), &structData); err != nil {
+					log.Printf("Error parsing structured data for row %d", logs[i].RowID)
 				}
 			}
 
@@ -284,8 +273,6 @@ func (s *Server) setupRoutes() {
 				nextCursor = &nextVal
 				prevCursor = &prevVal
 			}
-
-			// Cursors are now set properly
 		}
 
 		// Prepare the response
@@ -296,7 +283,7 @@ func (s *Server) setupRoutes() {
 				FilterRowCount: filterCount,
 				ChartData:      chartData,
 				Facets:         facets,
-				Metadata:       map[string]interface{}{},
+				Metadata:       map[string]any{},
 			},
 			NextCursor: nextCursor,
 			PrevCursor: prevCursor,

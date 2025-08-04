@@ -52,7 +52,8 @@ The following environment variables can be used to configure the application:
 - `SLOGGO_UDP_PORT`: Port for the UDP Syslog listener (default: `5514`).
 - `SLOGGO_TCP_PORT`: Port for the TCP Syslog listener (default: `6514`).
 - `SLOGGO_API_PORT`: Port for the API (default: `8080`).
-- `SLOGGO_LOG_RETENTION_MINUTES`: Duration in minutes to keep logs before deletion (default: `4320` - 3 days).
+- `SLOGGO_LOG_RETENTION_MINUTES`: Duration in minutes to keep logs before deletion (default: `43200` - 30 days).
+
 
 ## Contributing
 

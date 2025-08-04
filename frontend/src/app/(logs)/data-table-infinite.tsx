@@ -225,6 +225,7 @@ export function DataTableInfinite<TData, TValue, TMeta>({
       (prev, curr) => {
         prev[curr.id as string] = curr.value;
         return prev;
+        return { ...prev, [curr.id]: curr.value };
       },
       {} as Record<string, unknown>,
     );

@@ -11,7 +11,7 @@ type LogEntry struct {
 	RowID          int64     `json:"id"` // SQLite's built-in unique identifier
 	Facility       int       `json:"facility"`
 	Severity       int       `json:"severity"`
-	Timestamp      time.Time `json:"timestamp,omitempty"` // Use omitempty to avoid null values
+	Timestamp      time.Time `json:"timestamp"`
 	Hostname       string    `json:"hostname"`
 	AppName        string    `json:"appName"` // Note: DB column is app_name
 	ProcID         string    `json:"procId"`  // Note: DB column is procid
@@ -20,9 +20,9 @@ type LogEntry struct {
 	Message        string    `json:"message"` // Note: DB column is msg
 
 	// Derived fields for API responses
-	Priority             int               `json:"priority"`                 // Calculated field: Facility*8 + Severity
-	Level                string            `json:"level"`                    // Human-readable severity level
-	ParsedStructuredData map[string]string `json:"structuredData,omitempty"` // Parsed form of StructuredData
+	Priority             int                          `json:"priority"`                 // Calculated field: Facility*8 + Severity
+	Level                string                       `json:"level"`                    // Human-readable severity level
+	ParsedStructuredData map[string]map[string]string `json:"structuredData,omitempty"` // Parsed form of StructuredData
 }
 
 // GetSeverityLevel converts a severity number to a level string

@@ -1,6 +1,7 @@
 package formats
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -99,25 +100,15 @@ func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) (string, []any) {
 	return query, params
 }
 
-// formatStructuredData converts the structured data map to a string format
+// formatStructuredData converts the structured data map to a json string format
 func formatStructuredData(structData map[string]map[string]string) string {
-	if len(structData) == 0 {
-		return "-"
+	jsonBytes, err := json.Marshal(structData)
+	if err != nil {
+		log.Printf("Failed to marshal structured data: %v", err)
+		return "{}"
 	}
 
-	var result string
-	for id, params := range structData {
-		result += "["
-		result += id
-
-		for name, value := range params {
-			result += fmt.Sprintf(" %s=\"%s\"", name, value)
-		}
-
-		result += "]"
-	}
-
-	return result
+	return string(jsonBytes)
 }
 
 // ParseRFC5424Message parses an RFC5424 syslog message string

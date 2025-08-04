@@ -10,14 +10,42 @@ import type { ColumnSchema } from "./schema";
 
 // Facility names for display
 const FACILITY_NAMES = [
-  "Kernel", "User", "Mail", "Daemon", "Auth", "Syslog", "LPR", "News",
-  "UUCP", "Cron", "AuthPriv", "FTP", "NTP", "Audit", "Alert", "Clock",
-  "Local0", "Local1", "Local2", "Local3", "Local4", "Local5", "Local6", "Local7"
+  "Kernel",
+  "User",
+  "Mail",
+  "Daemon",
+  "Auth",
+  "Syslog",
+  "LPR",
+  "News",
+  "UUCP",
+  "Cron",
+  "AuthPriv",
+  "FTP",
+  "NTP",
+  "Audit",
+  "Alert",
+  "Clock",
+  "Local0",
+  "Local1",
+  "Local2",
+  "Local3",
+  "Local4",
+  "Local5",
+  "Local6",
+  "Local7",
 ];
 
 // Severity names for display
 const SEVERITY_NAMES = [
-  "Emergency", "Alert", "Critical", "Error", "Warning", "Notice", "Info", "Debug"
+  "Emergency",
+  "Alert",
+  "Critical",
+  "Error",
+  "Warning",
+  "Notice",
+  "Info",
+  "Debug",
 ];
 
 export const columns: ColumnDef<ColumnSchema>[] = [
@@ -42,12 +70,31 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     },
   },
   {
+    accessorKey: "id",
+    header: "ID",
+    cell: ({ row }) => {
+      const id = row.getValue<ColumnSchema["id"]>("id");
+      return <span className="font-mono">{id}</span>;
+    },
+    enableResizing: false,
+    size: 70,
+    minSize: 70,
+    meta: {
+      headerClassName:
+        "w-[--header-id-size] max-w-[--header-id-size] min-w-[--header-id-size]",
+      cellClassName:
+        "font-mono w-[--col-id-size] max-w-[--col-id-size] min-w-[--col-id-size]",
+    },
+  },
+  {
     accessorKey: "timestamp",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue<ColumnSchema["timestamp"]>("timestamp"));
+      const date = new Date(
+        row.getValue<ColumnSchema["timestamp"]>("timestamp"),
+      );
       return <HoverCardTimestamp date={date} />;
     },
     filterFn: "inDateRange",
@@ -61,24 +108,7 @@ export const columns: ColumnDef<ColumnSchema>[] = [
         "font-mono w-[--col-timestamp-size] max-w-[--col-timestamp-size] min-w-[--col-timestamp-size]",
     },
   },
-  {
-    id: "uuid",
-    accessorKey: "uuid",
-    header: "Message ID",
-    cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["uuid"]>("uuid");
-      return <TextWithTooltip text={value} />;
-    },
-    size: 130,
-    minSize: 130,
-    meta: {
-      label: "Message ID",
-      cellClassName:
-        "font-mono w-[--col-uuid-size] max-w-[--col-uuid-size] min-w-[--col-uuid-size]",
-      headerClassName:
-        "min-w-[--header-uuid-size] w-[--header-uuid-size] max-w-[--header-uuid-size]",
-    },
-  },
+  // Using SQLite rowid instead of UUID
   {
     accessorKey: "severity",
     header: "Severity",
@@ -86,10 +116,8 @@ export const columns: ColumnDef<ColumnSchema>[] = [
       const severity = row.getValue<ColumnSchema["severity"]>("severity");
       return (
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-sm">  {SEVERITY_NAMES[severity]}</span>
-          <span className="text-xs text-muted-foreground">
-            {severity}
-          </span>
+          <span className="font-mono text-sm"> {SEVERITY_NAMES[severity]}</span>
+          <span className="text-xs text-muted-foreground">{severity}</span>
         </div>
       );
     },
@@ -150,8 +178,10 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     size: 125,
     minSize: 125,
     meta: {
-      cellClassName: "font-mono w-[--col-hostname-size] max-w-[--col-hostname-size]",
-      headerClassName: "min-w-[--header-hostname-size] w-[--header-hostname-size]",
+      cellClassName:
+        "font-mono w-[--col-hostname-size] max-w-[--col-hostname-size]",
+      headerClassName:
+        "min-w-[--header-hostname-size] w-[--header-hostname-size]",
     },
   },
   {
@@ -182,8 +212,7 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     meta: {
       cellClassName:
         "font-mono w-[--col-procid-size] max-w-[--col-procid-size]",
-      headerClassName:
-        "min-w-[--header-procid-size] w-[--header-procid-size]",
+      headerClassName: "min-w-[--header-procid-size] w-[--header-procid-size]",
     },
   },
   {
@@ -196,10 +225,8 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     size: 80,
     minSize: 80,
     meta: {
-      cellClassName:
-        "font-mono w-[--col-msgid-size] max-w-[--col-msgid-size]",
-      headerClassName:
-        "min-w-[--header-msgid-size] w-[--header-msgid-size]",
+      cellClassName: "font-mono w-[--col-msgid-size] max-w-[--col-msgid-size]",
+      headerClassName: "min-w-[--header-msgid-size] w-[--header-msgid-size]",
     },
   },
   {
@@ -210,9 +237,7 @@ export const columns: ColumnDef<ColumnSchema>[] = [
       return (
         <div className="flex items-baseline gap-2">
           <span className="font-mono text-sm">{FACILITY_NAMES[facility]}</span>
-          <span className="text-xs text-muted-foreground">
-            {facility}
-          </span>
+          <span className="text-xs text-muted-foreground">{facility}</span>
         </div>
       );
     },
@@ -231,14 +256,20 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     accessorKey: "structuredData",
     header: "Structured Data",
     cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["structuredData"]>("structuredData");
+      const value =
+        row.getValue<ColumnSchema["structuredData"]>("structuredData");
       if (!value || Object.keys(value).length === 0) {
         return <span className="text-muted-foreground">-</span>;
       }
       return (
         <TextWithTooltip
           text={Object.entries(value)
-            .map(([k, v]) => `${k}=${v}`)
+            .map(
+              ([sdId, kvPairs]) =>
+                `${sdId}:{${Object.entries(kvPairs || {})
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join(", ")}}`,
+            )
             .join(", ")}
         />
       );
@@ -252,5 +283,4 @@ export const columns: ColumnDef<ColumnSchema>[] = [
         "min-w-[--header-structureddata-size] w-[--header-structureddata-size]",
     },
   },
-
 ];

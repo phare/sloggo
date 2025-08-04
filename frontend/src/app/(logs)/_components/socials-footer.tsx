@@ -33,9 +33,20 @@ export function SocialsFooter() {
         </Popover>
       </div>
       <p className="text-center text-xs text-muted-foreground">
-        Inspired by{" "}
-        <Link href="https://data-table.openstatus.dev/" hideArrow>
+        Made by{" "}
+        <Link href="https://phare.io/" hideArrow>
+          Phare
+        </Link>
+        , based on{" "}
+        <Link
+          href="https://github.com/openstatusHQ/data-table-filters"
+          hideArrow
+        >
           OpenStatus’s Data Table
+        </Link>{" "}
+        and{" "}
+        <Link href="https://github.com/leodido/go-syslog" hideArrow>
+          go-syslog
         </Link>
       </p>
     </div>
