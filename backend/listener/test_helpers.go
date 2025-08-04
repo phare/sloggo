@@ -148,7 +148,7 @@ func getTestCases() []testCase {
 				appName:        "app1",
 				procid:         "2345",
 				msgid:          "ID01",
-				structuredData: "[exampleSDID@32473 iut=\"3\" eventSource=\"Application\"]",
+				structuredData: "{\"exampleSDID@32473\":{\"eventSource\":\"Application\",\"iut\":\"3\"}}",
 				msg:            "Message with structured data",
 				shouldError:    false,
 			},
