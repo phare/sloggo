@@ -19,7 +19,7 @@ RUN go build \
     -o sloggo main.go
 
 # Stage 2: Build the React frontend
-FROM node:24-slim AS frontend-builder
+FROM node:20-slim AS frontend-builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 

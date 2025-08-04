@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node and enable Corepack
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
           cache: "pnpm"
 
       - name: Enable PNPM + restore store cache
