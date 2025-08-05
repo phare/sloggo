@@ -7,6 +7,7 @@ import (
 	"sloggo/db"
 	"sloggo/formats"
 	"sloggo/utils"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,9 +30,9 @@ func StartTCPListener() {
 
 	log.Printf("TCP listener is running on port :%s", port)
 
-	// Use a semaphore to limit concurrent connections
-	maxConcurrentConnections := 100
-	semaphore := make(chan struct{}, maxConcurrentConnections)
+	// Use a semaphore to limit concurrent processors
+	maxConcurrentProcessors := 100
+	semaphore := make(chan struct{}, maxConcurrentProcessors)
 
 	// Create a WaitGroup to track active connections
 	var wg sync.WaitGroup
@@ -43,20 +44,23 @@ func StartTCPListener() {
 			continue
 		}
 
-		// Acquire semaphore slot
-		semaphore <- struct{}{}
+		select {
+		case semaphore <- struct{}{}:
+			// Slot acquired, process the connection
+			wg.Add(1)
 
-		// Add to wait group
-		wg.Add(1)
-
-		go func(c net.Conn) {
-			defer func() {
-				// Release resources when done
-				<-semaphore
-				wg.Done()
-			}()
-			handleTCPConnection(c)
-		}(conn)
+			go func(c net.Conn) {
+				defer func() {
+					// Release resources when done
+					<-semaphore
+					wg.Done()
+				}()
+				handleTCPConnection(c)
+			}(conn)
+		default:
+			log.Printf("Warning: TCP connection processing at capacity, rejecting connection")
+			conn.Close()
+		}
 	}
 }
 
@@ -72,11 +76,7 @@ func handleTCPConnection(conn net.Conn) {
 	buffer := make([]byte, 0, 64*1024)
 	scanner.Buffer(buffer, maxScanSize)
 
-	// Use the default ScanLines function which already handles newlines
-	// This simplifies our code and handles both \n and \r\n properly
-
-	// Set initial read deadline
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 
 	for {
 		// Scan for the next message
@@ -85,7 +85,7 @@ func handleTCPConnection(conn net.Conn) {
 			if err := scanner.Err(); err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					// Just a timeout, reset deadline and try again
-					conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+					conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 					continue
 				}
 				log.Printf("TCP connection closed: %v", err)
@@ -95,26 +95,25 @@ func handleTCPConnection(conn net.Conn) {
 		}
 
 		// Reset deadline after successful read
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 
-		// Get the message text
-		message := scanner.Text()
+		message := strings.TrimSpace(scanner.Text())
 		if message == "" {
-			// Skip empty messages (like keepalives)
+			// Skip empty messages
 			continue
 		}
 
 		// Parse the message
 		syslogMsg, err := parser.Parse([]byte(message))
 		if err != nil {
-			log.Printf("Failed to parse message: %v", err)
+			log.Printf("Failed to parse message: %v: %s", err, message)
 			continue
 		}
 
 		// Convert to RFC5424 syslog message
 		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
 		if !ok {
-			log.Printf("Parsed message is not a valid RFC5424 message")
+			log.Printf("Parsed message is not a valid RFC5424 message: %s", message)
 			continue
 		}
 

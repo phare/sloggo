@@ -26,15 +26,15 @@ func StartUDPListener() {
 		IP:   net.ParseIP("0.0.0.0"),
 	}
 
-	conn, err := net.ListenUDP("udp", &addr)
+	listener, err := net.ListenUDP("udp", &addr)
 	if err != nil {
 		log.Fatalf("Failed to start UDP listener on port %s: %v", port, err)
 	}
-	defer conn.Close()
+	defer listener.Close()
 
 	log.Printf("UDP listener is running on port :%s", port)
 
-	// Use a semaphore to limit concurrent message processing
+	// Use a semaphore to limit concurrent processors
 	maxConcurrentProcessors := 100
 	semaphore := make(chan struct{}, maxConcurrentProcessors)
 
@@ -46,10 +46,9 @@ func StartUDPListener() {
 	buffer := make([]byte, bufferSize)
 
 	for {
-		// Set read deadline for UDP socket
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		listener.SetReadDeadline(time.Now().Add(30 * time.Second))
 
-		n, _, err := conn.ReadFromUDP(buffer)
+		n, _, err := listener.ReadFromUDP(buffer)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				// Just a timeout, continue
@@ -63,11 +62,11 @@ func StartUDPListener() {
 		messageCopy := make([]byte, n)
 		copy(messageCopy, buffer[:n])
 
-		// Acquire semaphore slot (non-blocking)
 		select {
 		case semaphore <- struct{}{}:
 			// Slot acquired, process the message
 			wg.Add(1)
+
 			go func(data []byte) {
 				defer func() {
 					// Release resources when done
@@ -77,8 +76,7 @@ func StartUDPListener() {
 				processUDPMessage(data)
 			}(messageCopy)
 		default:
-			// Semaphore full, log a warning and continue
-			log.Printf("Warning: UDP message processing at capacity, dropping message")
+			log.Printf("Warning: UDP connection processing at capacity, rejecting connection")
 		}
 	}
 }
@@ -93,9 +91,9 @@ func processUDPMessage(message []byte) {
 
 	// For UDP, we need to handle each datagram separately
 	// Split by newlines in case multiple messages were sent in one datagram
-	parts := strings.Split(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
+	parts := strings.SplitSeq(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
 
-	for _, part := range parts {
+	for part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue // Skip empty messages
@@ -104,14 +102,14 @@ func processUDPMessage(message []byte) {
 		// Parse the message
 		syslogMsg, err := parser.Parse([]byte(part))
 		if err != nil {
-			log.Printf("Failed to parse UDP message: %v", err)
+			log.Printf("Failed to parse UDP message: %v: %s", err, input)
 			continue
 		}
 
 		// Convert to RFC5424 syslog message
 		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
 		if !ok {
-			log.Printf("Parsed UDP message is not a valid RFC5424 message")
+			log.Printf("Parsed UDP message is not a valid RFC5424 message: %s", input)
 			continue
 		}
 
