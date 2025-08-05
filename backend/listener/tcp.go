@@ -117,11 +117,11 @@ func handleTCPConnection(conn net.Conn) {
 			continue
 		}
 
-		// Convert directly to SQL without intermediate format
-		query, params := formats.SyslogMessageToSQL(rfc5424Msg)
+		// Convert directly to SQL parameters without intermediate format
+		params := formats.SyslogMessageToSQL(rfc5424Msg)
 
 		// Store log without blocking if possible
-		if err := db.StoreLog(query, params); err != nil {
+		if err := db.StoreLog(params); err != nil {
 			log.Printf("Error storing log: %v", err)
 		}
 	}

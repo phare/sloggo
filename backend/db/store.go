@@ -23,8 +23,8 @@ var (
 	dbDirectory    string
 	dbInstance     *sql.DB
 	batchMutex     sync.Mutex
-	batchLogs      []string
 	batchParams    [][]any
+	insertStmt     *sql.Stmt
 	maxBatchSize   = 10000
 	checkpointTick = 60 * time.Second
 	cleanupTick    = 30 * time.Minute
@@ -60,6 +60,8 @@ type FacetRow struct {
 }
 
 func init() {
+	var err error
+
 	// Set up database connection
 	setupDatabase()
 
@@ -89,10 +91,22 @@ func init() {
 		log.Fatalf("Failed to create logs table: %v", err)
 	}
 
+	// Prepare the INSERT statement for batching
+	insertQuery := `
+		INSERT INTO logs (
+			facility, severity, version, timestamp,
+			hostname, app_name, procid, msgid,
+			structured_data, msg
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	insertStmt, err = dbInstance.Prepare(insertQuery)
+	if err != nil {
+		log.Fatalf("Failed to prepare INSERT statement: %v", err)
+	}
+
 	log.Println("Logs table created or already exists")
 
-	// Initialize the batch logs slice
-	batchLogs = make([]string, 0, maxBatchSize)
 	batchParams = make([][]any, 0, maxBatchSize)
 
 	// Start the batch processor
@@ -108,15 +122,14 @@ func GetDBInstance() *sql.DB {
 }
 
 // StoreLog adds a log message to the batch for efficient processing
-func StoreLog(query string, params []any) error {
+func StoreLog(params []any) error {
 	batchMutex.Lock()
 	defer batchMutex.Unlock()
 
-	batchLogs = append(batchLogs, query)
 	batchParams = append(batchParams, params)
 
 	// If we've reached the max batch size, process immediately
-	if len(batchLogs) >= maxBatchSize {
+	if len(batchParams) >= maxBatchSize {
 		return processBatch()
 	}
 
@@ -133,7 +146,7 @@ func ForceProcessBatch() error {
 
 // processBatch processes all pending log entries in a single transaction
 func processBatch() error {
-	if len(batchLogs) == 0 {
+	if len(batchParams) == 0 {
 		return nil
 	}
 
@@ -144,9 +157,13 @@ func processBatch() error {
 		return err
 	}
 
-	// Prepare to execute each statement
-	for i := 0; i < len(batchLogs); i++ {
-		_, err := tx.Exec(batchLogs[i], batchParams[i]...)
+	// Get transaction statement from our prepared statement
+	txStmt := tx.Stmt(insertStmt)
+	defer txStmt.Close()
+
+	// Execute each parameter set
+	for _, params := range batchParams {
+		_, err := txStmt.Exec(params...)
 		if err != nil {
 			tx.Rollback()
 			log.Printf("Failed to execute batch statement: %v", err)
@@ -160,9 +177,8 @@ func processBatch() error {
 		return err
 	}
 
-	// Clear the batches
-	batchLogs = batchLogs[:0]
-	batchParams = batchParams[:0]
+	// Clear the batch and release memory
+	batchParams = nil
 
 	return nil
 }

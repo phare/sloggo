@@ -25,15 +25,8 @@ func GetSeverityFromPriority(priority *uint8) uint8 {
 	return *priority % 8
 }
 
-// SyslogMessageToSQL converts a SyslogMessage to a SQL statement and parameters
-func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) (string, []any) {
-	query := `
-		INSERT INTO logs (
-			facility, severity, version, timestamp,
-			hostname, app_name, procid, msgid,
-			structured_data, msg
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+// SyslogMessageToSQL converts a SyslogMessage to SQL parameters for the prepared INSERT statement
+func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) []any {
 
 	// Calculate facility and severity from priority
 	var facility, severity uint8
@@ -98,7 +91,7 @@ func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) (string, []any) {
 		msgContent,
 	}
 
-	return query, params
+	return params
 }
 
 // formatStructuredData converts the structured data map to a json string format
