@@ -9,14 +9,16 @@ ENV CGO_ENABLED=1 \
     GOARCH=amd64
 
 RUN apk update && apk add --no-cache musl-dev gcc build-base
+RUN mkdir -p /app/.sqlite
 
 WORKDIR /app
 COPY backend/ .
 
 RUN go mod download
 RUN go build \
-    -ldflags "-X sloggo/utils.Version=${VERSION}" \
+    -ldflags '-linkmode external -extldflags "-static" -X sloggo/utils.Version=${VERSION}' \
     -o sloggo main.go
+
 
 # Stage 2: Build the React frontend
 FROM node:20-slim AS frontend-builder
@@ -36,16 +38,14 @@ RUN pnpm install --offline
 RUN pnpm exec next telemetry disable
 RUN pnpm build
 
-# Stage 3: Final runtime image
-FROM alpine:latest
 
-RUN apk add --no-cache sqlite libc6-compat
+# Stage 3: Final runtime image
+FROM scratch
 
 WORKDIR /app
 COPY --from=go-builder /app/sloggo /app/sloggo
+COPY --from=go-builder /app/.sqlite /app/.sqlite
 COPY --from=frontend-builder /app/out /app/public
-
-RUN mkdir -p /app/.sqlite
 
 EXPOSE 8080
 EXPOSE 6514
