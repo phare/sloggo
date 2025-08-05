@@ -26,8 +26,8 @@ var (
 	batchLogs      []string
 	batchParams    [][]any
 	maxBatchSize   = 10000
-	checkpointTick = 5 * time.Second
-	cleanupTick    = 15 * time.Minute
+	checkpointTick = 60 * time.Second
+	cleanupTick    = 30 * time.Minute
 )
 
 // Using the shared LogEntry from models package
@@ -97,9 +97,6 @@ func init() {
 
 	// Start the batch processor
 	go processBatchPeriodically()
-
-	// Start the checkpoint process
-	go performCheckpointsPeriodically()
 
 	// Start the log cleanup process
 	go performLogCleanupPeriodically()
@@ -172,7 +169,7 @@ func processBatch() error {
 
 // processBatchPeriodically processes any pending logs on a timer
 func processBatchPeriodically() {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -182,28 +179,6 @@ func processBatchPeriodically() {
 
 		if err != nil {
 			log.Printf("Error in periodic batch processing: %v", err)
-		}
-	}
-}
-
-// performCheckpoint executes a checkpoint to flush WAL to the main database file
-func performCheckpoint() error {
-	_, err := dbInstance.Exec("PRAGMA wal_checkpoint(PASSIVE);")
-	if err != nil {
-		log.Printf("Failed to perform WAL checkpoint: %v", err)
-		return err
-	}
-	return nil
-}
-
-// performCheckpointsPeriodically runs checkpoints on a timer
-func performCheckpointsPeriodically() {
-	ticker := time.NewTicker(checkpointTick)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := performCheckpoint(); err != nil {
-			log.Printf("Error in periodic checkpoint: %v", err)
 		}
 	}
 }
@@ -788,5 +763,5 @@ func setupDatabase() {
 	// Set connection pool parameters
 	dbInstance.SetMaxOpenConns(1)
 	dbInstance.SetMaxIdleConns(1)
-	dbInstance.SetConnMaxLifetime(10 * time.Minute)
+	dbInstance.SetConnMaxLifetime(30 * time.Minute)
 }
