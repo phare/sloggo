@@ -21,7 +21,7 @@ Sloggo is a lightweight log collection and exploration tool. It ingests logs ove
 
 Designed for small to medium-sized setups where you want real-time logs without spinning up the JVM or a full Kubernetes cluster to ingest 10 daily lines of logs.
 
-It runs in a single process with minimal resource usage and starts instantly via Docker.
+It runs in a single process with minimal resource usage, quick configuration via environment variables, and is less than 10 MiB in compressed size.
 
 > [!WARNING]
 > Sloggo is currently in alpha release, do not use it for anything serious, it also doesn’t offer any security layer by default, only use it in a private network, or behind a secure reverse proxy.
