@@ -30,8 +30,8 @@ export type InfiniteQueryResponse<TData, TMeta = unknown> = {
 // Helper to get a cursor that ensures data will be returned
 // For initial load, we use a time in the future to load the most recent logs
 const getInitialCursor = () => {
-  // Set cursor to 3 minutes in the future to ensure we get the most recent logs on initial load
-  return new Date(Date.now() + 3 * 60 * 1000).getTime();
+  // Set cursor to 1 minute in the future to ensure we get the most recent logs on initial load
+  return new Date(Date.now() + 1 * 60 * 1000).getTime();
 };
 
 export const dataOptions = (search: SearchParamsType) => {
@@ -76,7 +76,7 @@ export const dataOptions = (search: SearchParamsType) => {
 
       return json as InfiniteQueryResponse<ColumnSchema[], SyslogMeta>;
     },
-    initialPageParam: { cursor: new Date().getTime(), direction: "next" },
+    initialPageParam: { cursor: Date.now(), direction: "next" },
     getPreviousPageParam: (firstPage, _pages) => {
       // For previous page, use the previous cursor or null if it doesn't exist
       if (!firstPage.prevCursor) return null;
