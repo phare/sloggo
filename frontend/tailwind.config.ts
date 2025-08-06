@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+
 const { fontFamily } = require("tailwindcss/defaultTheme");
 
 const config = {
@@ -57,10 +58,15 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        success: "hsl(var(--success))",
-        warning: "hsl(var(--warning))",
+        emergency: "hsl(var(--emergency))",
+        alert: "hsl(var(--alert))",
+        critical: "hsl(var(--critical))",
         error: "hsl(var(--error))",
+        warning: "hsl(var(--warning))",
+        notice: "hsl(var(--notice))",
         info: "hsl(var(--info))",
+        debug: "hsl(var(--debug))",
+        success: "hsl(var(--success))",
       },
       borderRadius: {
         lg: "var(--radius)",

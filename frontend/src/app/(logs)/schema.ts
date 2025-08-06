@@ -1,4 +1,4 @@
-import { LEVELS } from "@/constants/levels";
+import { SEVERITY_VALUES } from "@/constants/severity";
 import {
   ARRAY_DELIMITER,
   RANGE_DELIMITER,
@@ -8,53 +8,42 @@ import { z } from "zod";
 
 // RFC 5424 Syslog Schema
 export const columnSchema = z.object({
-  id: z.number(), // SQLite rowid as unique identifier
-  facility: z.number().min(0).max(23),
+  id: z.number().int().positive(),
+  priority: z.number().min(0).max(191),
   severity: z.number().min(0).max(7),
-  priority: z.number().min(0).max(191), // Calculated: facility * 8 + severity
+  facility: z.number().min(0).max(23),
   timestamp: z.date(),
   hostname: z.string(),
   appName: z.string(),
   procId: z.string(),
   msgId: z.string(),
-  structuredData: z.record(z.record(z.string())).optional(),
   message: z.string(),
-  level: z.enum(LEVELS), // Derived from severity
+  structuredData: z.record(z.record(z.string())).optional(),
 });
 
 export type ColumnSchema = z.infer<typeof columnSchema>;
 
-// TODO: can we get rid of this in favor of nuqs search-params?
 export const columnFilterSchema = z.object({
-  level: z
-    .string()
-    .transform((val) => val.split(ARRAY_DELIMITER))
-    .pipe(z.enum(LEVELS).array())
-    .optional(),
-  hostname: z.string().optional(),
-  appName: z.string().optional(),
-  procId: z.string().optional(),
-  msgId: z.string().optional(),
-  facility: z
-    .string()
-    .transform((val) => val.split(ARRAY_DELIMITER))
-    .pipe(z.coerce.number().array())
-    .optional(),
   severity: z
     .string()
     .transform((val) => val.split(ARRAY_DELIMITER))
     .pipe(z.coerce.number().array())
     .optional(),
-  priority: z
+  facility: z
     .string()
-    .transform((val) => val.split(SLIDER_DELIMITER))
-    .pipe(z.coerce.number().array().max(2))
+    .transform((val) => val.split(ARRAY_DELIMITER))
+    .pipe(z.coerce.number().array())
     .optional(),
-  date: z
+  timestamp: z
     .string()
     .transform((val) => val.split(RANGE_DELIMITER).map(Number))
     .pipe(z.coerce.date().array())
     .optional(),
+  hostname: z.string().optional(),
+  appName: z.string().optional(),
+  procId: z.string().optional(),
+  msgId: z.string().optional(),
+  message: z.string().optional(),
 });
 
 export type ColumnFilterSchema = z.infer<typeof columnFilterSchema>;
@@ -72,14 +61,13 @@ export type BaseChartSchema = { timestamp: number; [key: string]: number };
 
 export const timelineChartSchema = z.object({
   timestamp: z.number(), // UNIX
-  ...LEVELS.reduce(
-    (acc, level) => ({
+  ...SEVERITY_VALUES.reduce(
+    (acc, severity) => ({
       ...acc,
-      [level]: z.number().default(0),
+      [severity]: z.number().default(0),
     }),
-    {} as Record<(typeof LEVELS)[number], z.ZodNumber>,
+    {} as Record<(typeof SEVERITY_VALUES)[number], z.ZodNumber>,
   ),
-  // REMINDER: make sure to have the `timestamp` field in the object
 }) satisfies z.ZodType<BaseChartSchema>;
 
 export type TimelineChartSchema = z.infer<typeof timelineChartSchema>;

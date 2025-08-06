@@ -7,8 +7,8 @@ import type {
   Option,
   SheetField,
 } from "@/components/data-table/types";
-import { LEVELS } from "@/constants/levels";
-import { getLevelColor } from "@/lib/request/level";
+import { SEVERITY_LABELS, SEVERITY_VALUES } from "@/constants/severity";
+import { getSeverityColor } from "@/lib/request/severity";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { SyslogMeta } from "./query-options";
@@ -42,18 +42,6 @@ const SYSLOG_FACILITIES = [
   { label: "Local use 7", value: 23 },
 ];
 
-// Syslog severity levels
-const SYSLOG_SEVERITIES = [
-  { label: "Emergency", value: 0 },
-  { label: "Alert", value: 1 },
-  { label: "Critical", value: 2 },
-  { label: "Error", value: 3 },
-  { label: "Warning", value: 4 },
-  { label: "Notice", value: 5 },
-  { label: "Informational", value: 6 },
-  { label: "Debug", value: 7 },
-];
-
 export const filterFields = [
   {
     label: "Time Range",
@@ -63,13 +51,16 @@ export const filterFields = [
     commandDisabled: true,
   },
   {
-    label: "Level",
-    value: "level",
+    label: "Severity",
+    value: "severity",
     type: "checkbox",
     defaultOpen: true,
-    options: LEVELS.map((level) => ({ label: level, value: level })),
+    options: SEVERITY_LABELS.map((label, index) => ({
+      label: label,
+      value: index,
+    })),
     component: (props: Option) => {
-      const value = props.value as (typeof LEVELS)[number];
+      const value = props.value as number;
       return (
         <div className="flex w-full max-w-28 items-center justify-between gap-2 font-mono">
           <span className="capitalize text-foreground/70 group-hover:text-accent-foreground">
@@ -79,12 +70,21 @@ export const filterFields = [
             <div
               className={cn(
                 "h-2.5 w-2.5 rounded-[2px]",
-                getLevelColor(value).bg,
+                getSeverityColor(SEVERITY_VALUES[value]).bg,
               )}
             />
           </div>
         </div>
       );
+    },
+  },
+  {
+    label: "Facility",
+    value: "facility",
+    type: "checkbox",
+    options: SYSLOG_FACILITIES,
+    component: (props: Option) => {
+      return <span className="font-mono">{props.label}</span>;
     },
   },
   {
@@ -106,32 +106,6 @@ export const filterFields = [
     label: "Msg ID",
     value: "msgId",
     type: "input",
-  },
-  // Fix facilities and severity filter when backend supports it or make it work in frontend
-  // {
-  //   label: "Facility",
-  //   value: "facility",
-  //   type: "checkbox",
-  //   options: SYSLOG_FACILITIES,
-  //   component: (props: Option) => {
-  //     return <span className="font-mono">{props.label}</span>;
-  //   },
-  // },
-  // {
-  //   label: "Severity",
-  //   value: "severity",
-  //   type: "checkbox",
-  //   options: SYSLOG_SEVERITIES,
-  //   component: (props: Option) => {
-  //     return <span className="font-mono">{props.label}</span>;
-  //   },
-  // },
-  {
-    label: "Priority",
-    value: "priority",
-    type: "slider",
-    min: 0,
-    max: 191,
   },
 ] satisfies DataTableFilterField<ColumnSchema>[];
 
@@ -184,22 +158,14 @@ export const sheetFields = [
         "Local6",
         "Local7",
       ];
-      const severityNames = [
-        "Emergency",
-        "Alert",
-        "Critical",
-        "Error",
-        "Warning",
-        "Notice",
-        "Info",
-        "Debug",
-      ];
       return (
         <div className="flex flex-col">
-          <span className="font-mono">{props.priority}</span>
+          <span className="font-mono">
+            {props.facility * 8 + props.severity}
+          </span>
           <span className="text-sm text-muted-foreground">
-            {facilityNames[facility]} ({facility}) • {severityNames[severity]} (
-            {severity})
+            {facilityNames[facility]} ({facility}) • {SEVERITY_LABELS[severity]}{" "}
+            ({severity})
           </span>
         </div>
       );

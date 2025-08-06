@@ -1,12 +1,12 @@
 import { TableCell, TableRow } from "@/components/custom/table";
-import { DataTableColumnLevelIndicator } from "@/components/data-table/data-table-column/data-table-column-level-indicator";
+import { DataTableColumnSeverityIndicator } from "@/components/data-table/data-table-column/data-table-column-severity-indicator";
 import { columns } from "../columns";
 
 export function LiveRow() {
   return (
     <TableRow>
-      <TableCell className="w-[--header-level-size] min-w-[--header-level-size] max-w-[--header-level-size] border-b border-l border-r border-t border-info border-r-info/50">
-        <DataTableColumnLevelIndicator value="info" />
+      <TableCell className="w-[--header-severity-size] min-w-[--header-severity-size] max-w-[--header-severity-size] border-b border-l border-r border-t border-info border-r-info/50">
+        <DataTableColumnSeverityIndicator value="info" />
       </TableCell>
       <TableCell
         colSpan={columns.length - 1}

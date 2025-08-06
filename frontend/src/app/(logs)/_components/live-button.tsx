@@ -19,7 +19,8 @@ interface LiveButtonProps {
 }
 
 export function LiveButton({ fetchPreviousPage }: LiveButtonProps) {
-  const [{ live, date, sort }, setSearch] = useQueryStates(searchParamsParser);
+  const [{ live, timestamp, sort }, setSearch] =
+    useQueryStates(searchParamsParser);
   const { table } = useDataTable();
   useHotKey(handleClick, "j");
 
@@ -45,10 +46,10 @@ export function LiveButton({ fetchPreviousPage }: LiveButtonProps) {
   // REMINDER: make sure to reset live when date is set
   // TODO: test properly
   React.useEffect(() => {
-    if ((date || sort) && live) {
+    if ((timestamp || sort) && live) {
       setSearch((prev) => ({ ...prev, live: null }));
     }
-  }, [date, sort]);
+  }, [timestamp, sort]);
 
   function handleClick() {
     setSearch((prev) => ({

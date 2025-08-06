@@ -1,36 +1,30 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis } from "recharts";
-
+import { useDataTable } from "@/components/data-table/data-table-provider";
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { SEVERITY_VALUES } from "@/constants/severity";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis } from "recharts";
 import type { CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
-import { useDataTable } from "@/components/data-table/data-table-provider";
 import { BaseChartSchema, TimelineChartSchema } from "./schema";
 
 export const description = "A stacked bar chart";
 
-const chartConfig = {
-  info: {
-    label: <TooltipLabel level="info" />,
-    color: "hsl(var(--info))",
-  },
-  warning: {
-    label: <TooltipLabel level="warning" />,
-    color: "hsl(var(--warning))",
-  },
-  error: {
-    label: <TooltipLabel level="error" />,
-    color: "hsl(var(--error))",
-  },
-} satisfies ChartConfig;
+const chartConfig = SEVERITY_VALUES.reduce((acc, value) => {
+  acc[value] = {
+    label: <TooltipLabel severity={value} />,
+    color: `hsl(var(--${value}))`,
+  };
+
+  return acc;
+}, {} as ChartConfig);
 
 interface TimelineChartProps<TChart extends BaseChartSchema> {
   className?: string;
@@ -155,10 +149,14 @@ export function TimelineChart<TChart extends BaseChartSchema>({
             />
           }
         />
-        {/* TODO: we could use the `{timestamp, ...rest} = data[0]` to dynamically create the bars but that would mean the order can be very much random */}
-        <Bar dataKey="error" stackId="a" fill="#ef4444" />
-        <Bar dataKey="warning" stackId="a" fill="#f59e0b" />
-        <Bar dataKey="info" stackId="a" fill="#3b82f6" />
+        <Bar dataKey="emergency" stackId="a" fill="hsl(var(--emergency))" />
+        <Bar dataKey="alert" stackId="a" fill="hsl(var(--alert))" />
+        <Bar dataKey="critical" stackId="a" fill="hsl(var(--critical))" />
+        <Bar dataKey="error" stackId="a" fill="hsl(var(--error))" />
+        <Bar dataKey="warning" stackId="a" fill="hsl(var(--warning))" />
+        <Bar dataKey="notice" stackId="a" fill="hsl(var(--notice))" />
+        <Bar dataKey="info" stackId="a" fill="hsl(var(--info))" />
+        <Bar dataKey="debug" stackId="a" fill="hsl(var(--debug))" />
         {refAreaLeft && refAreaRight && (
           <ReferenceArea
             x1={refAreaLeft}
@@ -188,15 +186,14 @@ function calculatePeriod(interval: number): "10m" | "1d" | "1w" | "1mo" {
   return "1mo"; // defaults to 1 month
 }
 
-// TODO: use a `formatTooltipLabel` function instead for composability
 function TooltipLabel({
-  level,
+  severity,
 }: {
-  level: keyof Omit<TimelineChartSchema, "timestamp">;
+  severity: (typeof SEVERITY_VALUES)[number];
 }) {
   return (
     <div className="mr-2 flex w-20 items-center justify-between gap-2 font-mono">
-      <div className="capitalize text-foreground/70">{level}</div>
+      <div className="capitalize text-foreground/70">{severity}</div>
     </div>
   );
 }

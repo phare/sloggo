@@ -1,4 +1,4 @@
-import { LEVELS } from "@/constants/levels";
+import { SEVERITY_VALUES } from "@/constants/severity";
 // Note: import from 'nuqs/server' to avoid the "use client" directive
 import {
   ARRAY_DELIMITER,
@@ -34,22 +34,20 @@ export const parseAsSort = createParser({
 
 export const searchParamsParser = {
   // CUSTOM FILTERS
-  level: parseAsArrayOf(parseAsStringLiteral(LEVELS), ARRAY_DELIMITER),
-  priority: parseAsArrayOf(parseAsInteger, SLIDER_DELIMITER),
   facility: parseAsArrayOf(parseAsInteger, ARRAY_DELIMITER),
   severity: parseAsArrayOf(parseAsInteger, ARRAY_DELIMITER),
   hostname: parseAsString,
   appName: parseAsString,
   procId: parseAsString,
   msgId: parseAsString,
-  date: parseAsArrayOf(parseAsTimestamp, RANGE_DELIMITER),
+  timestamp: parseAsArrayOf(parseAsTimestamp, RANGE_DELIMITER),
   // REQUIRED FOR SORTING & PAGINATION
+  cursor: parseAsTimestamp.withDefault(new Date()),
   sort: parseAsSort,
   size: parseAsInteger.withDefault(40),
   start: parseAsInteger.withDefault(0),
   // REQUIRED FOR INFINITE SCROLLING (Live Mode and Load More)
   direction: parseAsStringLiteral(["prev", "next"]).withDefault("next"),
-  cursor: parseAsTimestamp.withDefault(new Date()),
   live: parseAsBoolean.withDefault(false),
   // Use SQLite rowid for selection
   id: parseAsInteger,

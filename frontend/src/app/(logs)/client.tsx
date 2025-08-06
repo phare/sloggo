@@ -1,8 +1,9 @@
 "use client";
 
 import { log } from "node:console";
+import { SEVERITY_VALUES } from "@/constants/severity";
 import { useHotKey } from "@/hooks/use-hot-key";
-import { getLevelRowClassName } from "@/lib/request/level";
+import { getSeverityRowClassName } from "@/lib/request/severity";
 import { cn } from "@/lib/utils";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { Table as TTable } from "@tanstack/react-table";
@@ -47,22 +48,12 @@ export function Client() {
 
   const { sort, start, size, id, cursor, direction, live, ...filter } = search;
 
-  // Track whether filters are applied
-  // const hasActiveFilters = React.useMemo(() => {
-  //   return Object.values(filter).some(
-  //     (value) => value !== null && value !== undefined,
-  //   );
-  // }, [filter]);
-
-  // REMINDER: this is currently needed for the cmdk search
-  // TODO: auto search via API when the user changes the filter instead of hardcoded
   const filterFields = React.useMemo(() => {
     return defaultFilterFields.map((field) => {
       const facetsField = facets?.[field.value];
       if (!facetsField) return field;
       if (field.options && field.options.length > 0) return field;
 
-      // REMINDER: if no options are set, we need to set them via the API
       const options = facetsField.rows.map(({ value }) => {
         return {
           label: `${value}`,
@@ -70,45 +61,9 @@ export function Client() {
         };
       });
 
-      if (field.type === "slider") {
-        return {
-          ...field,
-          min: facetsField.min ?? field.min,
-          max: facetsField.max ?? field.max,
-          options,
-        };
-      }
-
       return { ...field, options };
     });
   }, [facets]);
-
-  // Use a stable reference to track when filters change
-  // const filtersRef = React.useRef<typeof filter>(filter);
-  // const initialRenderRef = React.useRef(true);
-
-  // React.useEffect(() => {
-  //   // Skip the initial render
-  //   if (initialRenderRef.current) {
-  //     initialRenderRef.current = false;
-  //     filtersRef.current = filter;
-  //     return;
-  //   }
-
-  //   // Check if filters actually changed
-  //   const filterChanged = Object.entries(filter).some(([key, value]) => {
-  //     const currentKey = key as keyof typeof filter;
-  //     const currentValue = filtersRef.current[currentKey];
-  //     // Simple equality check with null/undefined safety
-  //     return JSON.stringify(currentValue) !== JSON.stringify(value);
-  //   });
-
-  //   // Only refetch if filters changed
-  //   if (filterChanged) {
-  //     refetch();
-  //     filtersRef.current = filter;
-  //   }
-  // }, [filter, refetch]);
 
   return (
     <DataTableInfinite
@@ -125,7 +80,6 @@ export function Client() {
         .filter(({ value }) => value ?? undefined)}
       defaultColumnSorting={sort ? [sort] : undefined}
       defaultRowSelection={id ? { [id]: true } : undefined}
-      // FIXME: make it configurable - TODO: use `columnHidden: boolean` in `filterFields`
       defaultColumnVisibility={{}}
       meta={metadata}
       filterFields={filterFields}
@@ -141,8 +95,10 @@ export function Client() {
       getRowClassName={(row) => {
         const rowTimestamp = row.original.timestamp.getTime();
         const isPast = rowTimestamp <= (liveMode.timestamp || -1);
-        const levelClassName = getLevelRowClassName(row.original.level);
-        return cn(levelClassName, isPast ? "opacity-50" : "opacity-100");
+        const severityClassName = getSeverityRowClassName(
+          SEVERITY_VALUES[row.original.severity],
+        );
+        return cn(severityClassName, isPast ? "opacity-50" : "opacity-100");
       }}
       getRowId={(row) => String(row.id)}
       getFacetedUniqueValues={getFacetedUniqueValues(facets)}
@@ -176,11 +132,11 @@ export function useLiveMode<TData extends { timestamp: Date; id: number }>(
   const [live] = useQueryState("live", searchParamsParser.live);
   // REMINDER: used to capture the live mode on timestamp
   const liveTimestamp = React.useRef<number | undefined>(
-    live ? new Date().getTime() : undefined,
+    live ? Date.now() : undefined,
   );
 
   React.useEffect(() => {
-    if (live) liveTimestamp.current = new Date().getTime();
+    if (live) liveTimestamp.current = Date.now();
     else liveTimestamp.current = undefined;
   }, [live]);
 

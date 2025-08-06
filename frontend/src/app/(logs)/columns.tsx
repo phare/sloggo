@@ -2,8 +2,8 @@
 
 import { TextWithTooltip } from "@/components/custom/text-with-tooltip";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { DataTableColumnLevelIndicator } from "@/components/data-table/data-table-column/data-table-column-level-indicator";
-import { cn } from "@/lib/utils";
+import { DataTableColumnSeverityIndicator } from "@/components/data-table/data-table-column/data-table-column-severity-indicator";
+import { SEVERITY_VALUES } from "@/constants/severity";
 import type { ColumnDef } from "@tanstack/react-table";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
 import type { ColumnSchema } from "./schema";
@@ -36,25 +36,24 @@ const FACILITY_NAMES = [
   "Local7",
 ];
 
-// Severity names for display
-const SEVERITY_NAMES = [
-  "Emergency",
-  "Alert",
-  "Critical",
-  "Error",
-  "Warning",
-  "Notice",
-  "Info",
-  "Debug",
-];
-
 export const columns: ColumnDef<ColumnSchema>[] = [
   {
-    accessorKey: "level",
+    id: "severity",
+    accessorKey: "severity",
     header: "",
     cell: ({ row }) => {
-      const level = row.getValue<ColumnSchema["level"]>("level");
-      return <DataTableColumnLevelIndicator value={level} />;
+      const severity = row.getValue<ColumnSchema["severity"]>("severity");
+
+      return (
+        <div className="flex items-baseline gap-2">
+          <DataTableColumnSeverityIndicator value={SEVERITY_VALUES[severity]} />
+          <span className="font-mono text-sm">
+            {" "}
+            {SEVERITY_VALUES[severity]}
+          </span>
+          <span className="text-xs text-muted-foreground">{severity}</span>
+        </div>
+      );
     },
     enableHiding: false,
     enableResizing: false,
@@ -64,26 +63,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     maxSize: 27,
     meta: {
       headerClassName:
-        "w-[--header-level-size] max-w-[--header-level-size] min-w-[--header-level-size]",
+        "w-[--header-severity-size] max-w-[--header-severity-size] min-w-[--header-severity-size]",
       cellClassName:
-        "w-[--col-level-size] max-w-[--col-level-size] min-w-[--col-level-size]",
-    },
-  },
-  {
-    accessorKey: "id",
-    header: "ID",
-    cell: ({ row }) => {
-      const id = row.getValue<ColumnSchema["id"]>("id");
-      return <span className="font-mono">{id}</span>;
-    },
-    enableResizing: false,
-    size: 70,
-    minSize: 70,
-    meta: {
-      headerClassName:
-        "w-[--header-id-size] max-w-[--header-id-size] min-w-[--header-id-size]",
-      cellClassName:
-        "font-mono w-[--col-id-size] max-w-[--col-id-size] min-w-[--col-id-size]",
+        "w-[--col-severity-size] max-w-[--col-severity-size] min-w-[--col-severity-size]",
     },
   },
   {
@@ -108,16 +90,15 @@ export const columns: ColumnDef<ColumnSchema>[] = [
         "font-mono w-[--col-timestamp-size] max-w-[--col-timestamp-size] min-w-[--col-timestamp-size]",
     },
   },
-  // Using SQLite rowid instead of UUID
   {
-    accessorKey: "severity",
-    header: "Severity",
+    accessorKey: "facility",
+    header: "Facility",
     cell: ({ row }) => {
-      const severity = row.getValue<ColumnSchema["severity"]>("severity");
+      const facility = row.getValue<ColumnSchema["facility"]>("facility");
       return (
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-sm"> {SEVERITY_NAMES[severity]}</span>
-          <span className="text-xs text-muted-foreground">{severity}</span>
+          <span className="font-mono text-sm">{FACILITY_NAMES[facility]}</span>
+          <span className="text-xs text-muted-foreground">{facility}</span>
         </div>
       );
     },
@@ -127,45 +108,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 100,
     meta: {
       headerClassName:
-        "w-[--header-severity-size] max-w-[--header-severity-size] min-w-[--header-severity-size]",
+        "w-[--header-facility-size] max-w-[--header-facility-size] min-w-[--header-facility-size]",
       cellClassName:
-        "font-mono w-[--col-severity-size] max-w-[--col-severity-size] min-w-[--col-severity-size]",
-    },
-  },
-  {
-    accessorKey: "priority",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Priority" />
-    ),
-    cell: ({ row }) => {
-      const priority = row.getValue<ColumnSchema["priority"]>("priority");
-      return <span className="font-mono">{priority}</span>;
-    },
-    filterFn: "inNumberRange",
-    enableResizing: false,
-    size: 80,
-    minSize: 80,
-    meta: {
-      headerClassName:
-        "w-[--header-priority-size] max-w-[--header-priority-size] min-w-[--header-priority-size]",
-      cellClassName:
-        "font-mono w-[--col-priority-size] max-w-[--col-priority-size] min-w-[--col-priority-size]",
-    },
-  },
-  {
-    accessorKey: "message",
-    header: "Message",
-    cell: ({ row }) => {
-      const value = row.getValue<ColumnSchema["message"]>("message");
-      return <TextWithTooltip text={value} />;
-    },
-    size: 300,
-    minSize: 200,
-    meta: {
-      cellClassName:
-        "font-mono w-[--col-message-size] max-w-[--col-message-size]",
-      headerClassName:
-        "min-w-[--header-message-size] w-[--header-message-size]",
+        "font-mono w-[--col-facility-size] max-w-[--col-facility-size] min-w-[--col-facility-size]",
     },
   },
   {
@@ -230,26 +175,19 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     },
   },
   {
-    accessorKey: "facility",
-    header: "Facility",
+    accessorKey: "message",
+    header: "Message",
     cell: ({ row }) => {
-      const facility = row.getValue<ColumnSchema["facility"]>("facility");
-      return (
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-sm">{FACILITY_NAMES[facility]}</span>
-          <span className="text-xs text-muted-foreground">{facility}</span>
-        </div>
-      );
+      const value = row.getValue<ColumnSchema["message"]>("message");
+      return <TextWithTooltip text={value} />;
     },
-    filterFn: "arrIncludesSome",
-    enableResizing: false,
-    size: 100,
-    minSize: 100,
+    size: 300,
+    minSize: 200,
     meta: {
-      headerClassName:
-        "w-[--header-facility-size] max-w-[--header-facility-size] min-w-[--header-facility-size]",
       cellClassName:
-        "font-mono w-[--col-facility-size] max-w-[--col-facility-size] min-w-[--col-facility-size]",
+        "font-mono w-[--col-message-size] max-w-[--col-message-size]",
+      headerClassName:
+        "min-w-[--header-message-size] w-[--header-message-size]",
     },
   },
   {
