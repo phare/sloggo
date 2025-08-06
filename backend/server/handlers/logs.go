@@ -60,7 +60,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse cursor (timestamp) for pagination
 	var cursor time.Time
-	now := time.Now()
+	now := time.Now().UTC().Add(1 * time.Minute) // Allow for clock skew
 
 	if cursorStr := query.Get("cursor"); cursorStr != "" {
 		if parsedCursor, err := strconv.ParseInt(cursorStr, 10, 64); err == nil {
@@ -158,7 +158,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Date range filter
 	if dateStr := query.Get("date"); dateStr != "" {
-		dateValues := strings.Split(dateStr, "..")
+		dateValues := strings.Split(dateStr, "-")
 		if len(dateValues) == 2 {
 			startMillis, startErr := strconv.ParseInt(dateValues[0], 10, 64)
 			endMillis, endErr := strconv.ParseInt(dateValues[1], 10, 64)
@@ -233,17 +233,10 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Determine next and previous cursors
 	var nextCursor, prevCursor *int64 = nil, nil
 	if len(logs) > 0 {
-		if direction == "next" {
-			nextVal := logs[len(logs)-1].Timestamp.UnixNano() / int64(time.Millisecond)
-			prevVal := logs[0].Timestamp.UnixNano() / int64(time.Millisecond)
-			nextCursor = &nextVal
-			prevCursor = &prevVal
-		} else {
-			nextVal := logs[0].Timestamp.UnixNano() / int64(time.Millisecond)
-			prevVal := logs[len(logs)-1].Timestamp.UnixNano() / int64(time.Millisecond)
-			nextCursor = &nextVal
-			prevCursor = &prevVal
-		}
+		nextVal := logs[len(logs)-1].Timestamp.UnixNano() / int64(time.Millisecond)
+		prevVal := logs[0].Timestamp.UnixNano() / int64(time.Millisecond)
+		nextCursor = &nextVal
+		prevCursor = &prevVal
 	}
 
 	// Prepare the response
