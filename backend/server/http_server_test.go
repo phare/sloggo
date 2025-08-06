@@ -36,7 +36,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:           "Logs endpoint with filter parameters",
-			path:           "/api/logs?level=error,warning&hostname=testhost",
+			path:           "/api/logs?severity=emergency,warning&hostname=testhost",
 			method:         "GET",
 			expectedCode:   http.StatusOK,
 			checkJSONValid: true,
@@ -50,7 +50,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:           "Logs endpoint with sort parameters",
-			path:           "/api/logs?sort=severity.asc",
+			path:           "/api/logs?sort=timestamp.asc",
 			method:         "GET",
 			expectedCode:   http.StatusOK,
 			checkJSONValid: true,
@@ -153,7 +153,7 @@ func TestServerIntegration(t *testing.T) {
 		},
 		{
 			name:           "Logs endpoint with filter parameters",
-			path:           "/api/logs?level=error,warning",
+			path:           "/api/logs?severity=emergency,warning",
 			method:         "GET",
 			expectedCode:   http.StatusOK,
 			checkJSONValid: true,

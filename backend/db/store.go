@@ -389,44 +389,13 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		Total: totalCount,
 	}
 
-	// Get severity facets (map to level names)
-	severityRows, err := getFacetValues("severity", facetFilters, 8)
+	// Get severity facets
+	severityRows, err := getFacetValues("severity", facetFilters, 24)
 	if err != nil {
 		return nil, err
 	}
-	// Convert severity numbers to level names
-	levelRows := []FacetRow{}
-	for _, row := range severityRows {
-		if severity, ok := row.Value.(int); ok {
-			var levelName string
-			switch severity {
-			case 0:
-				levelName = "emergency"
-			case 1:
-				levelName = "alert"
-			case 2:
-				levelName = "critical"
-			case 3:
-				levelName = "error"
-			case 4:
-				levelName = "warning"
-			case 5:
-				levelName = "notice"
-			case 6:
-				levelName = "info"
-			case 7:
-				levelName = "debug"
-			default:
-				continue // Skip unknown severity levels
-			}
-			levelRows = append(levelRows, FacetRow{
-				Value: levelName,
-				Total: row.Total,
-			})
-		}
-	}
-	facets["level"] = FacetMetadata{
-		Rows:  levelRows,
+	facets["severity"] = FacetMetadata{
+		Rows:  severityRows,
 		Total: totalCount,
 	}
 
@@ -664,35 +633,6 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 	// Add filter conditions
 	for key, value := range filters {
 		switch key {
-		case "level":
-			levels := value.([]string)
-			if len(levels) > 0 {
-				levelConditions := []string{}
-				for _, level := range levels {
-					var severity int
-					switch level {
-					case "emergency":
-						severity = 0
-					case "alert":
-						severity = 1
-					case "critical":
-						severity = 2
-					case "error":
-						severity = 3
-					case "warning":
-						severity = 4
-					case "notice":
-						severity = 5
-					case "info":
-						severity = 6
-					case "debug":
-						severity = 7
-					}
-					levelConditions = append(levelConditions, "severity = ?")
-					*args = append(*args, severity)
-				}
-				conditions = append(conditions, fmt.Sprintf("(%s)", strings.Join(levelConditions, " OR ")))
-			}
 		case "hostname":
 			conditions = append(conditions, "hostname LIKE ?")
 			*args = append(*args, fmt.Sprintf("%%%s%%", value.(string)))

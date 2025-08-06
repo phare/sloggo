@@ -90,11 +90,6 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Filters
 	filters := make(map[string]any)
 
-	// Level filter
-	if levelStr := query.Get("level"); levelStr != "" {
-		filters["level"] = strings.Split(levelStr, ",")
-	}
-
 	// Hostname filter
 	if hostname := query.Get("hostname"); hostname != "" {
 		filters["hostname"] = hostname
@@ -219,8 +214,6 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Calculate priority
-		logs[i].Priority = logs[i].Facility*8 + logs[i].Severity
-		logs[i].Level = models.GetSeverityLevel(logs[i].Severity)
 		logs[i].ParsedStructuredData = structData
 
 		// Ensure timestamp is properly formatted for JavaScript to parse

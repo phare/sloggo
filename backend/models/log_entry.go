@@ -20,16 +20,5 @@ type LogEntry struct {
 	Message        string    `json:"message"` // Note: DB column is msg
 
 	// Derived fields for API responses
-	Priority             int                          `json:"priority"`                 // Calculated field: Facility*8 + Severity
-	Level                string                       `json:"level"`                    // Human-readable severity level
 	ParsedStructuredData map[string]map[string]string `json:"structuredData,omitempty"` // Parsed form of StructuredData
-}
-
-// GetSeverityLevel converts a severity number to a level string
-func GetSeverityLevel(severity int) string {
-	levels := []string{"emergency", "alert", "critical", "error", "warning", "notice", "info", "debug"}
-	if severity >= 0 && severity < len(levels) {
-		return levels[severity]
-	}
-	return "unknown"
 }
