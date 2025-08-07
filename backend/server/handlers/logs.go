@@ -152,7 +152,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Date range filter
-	if dateStr := query.Get("date"); dateStr != "" {
+	if dateStr := query.Get("timestamp"); dateStr != "" {
 		dateValues := strings.Split(dateStr, "-")
 		if len(dateValues) == 2 {
 			startMillis, startErr := strconv.ParseInt(dateValues[0], 10, 64)
