@@ -20,16 +20,13 @@ import (
 )
 
 var (
-	dbDirectory  string
-	dbInstance   *sql.DB
-	batchMutex   sync.Mutex
-	batchParams  [][]any
-	insertStmt   *sql.Stmt
-	maxBatchSize = 10000
-	cleanupTick  = 30 * time.Minute
+	dbDirectory           string
+	dbInstance            *sql.DB
+	batchStoreLogsMutex   sync.Mutex
+	batchStoreLogsParams  [][]any
+	maxBatchStoreLogsSize = 10000
+	cleanupTick           = 30 * time.Minute
 )
-
-// Using the shared LogEntry from models package
 
 // ChartDataPoint represents a single point of log data for charts
 type ChartDataPoint struct {
@@ -59,14 +56,53 @@ type FacetRow struct {
 }
 
 func init() {
-	var err error
-
 	// Set up database connection
 	setupDatabase()
 
 	// Initialize schema
-	query := `
-	CREATE TABLE IF NOT EXISTS logs (
+	setupDatabaseTable("logs")
+
+	batchStoreLogsParams = make([][]any, 0, maxBatchStoreLogsSize)
+
+	// Start the batch processor
+	go processBatchPeriodically()
+
+	// Start the log cleanup process
+	go performLogCleanupPeriodically()
+}
+
+// setupDatabase initializes the database connection
+// Uses in-memory database for tests and file-based for production
+func setupDatabase() {
+	var err error
+	var dbPath string
+
+	if testing.Testing() {
+		dbPath = ":memory:"
+	} else {
+		e, err := os.Executable()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
+	}
+
+	dbInstance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000")
+	if err != nil {
+		log.Fatalf("Failed to connect to SQLite database: %v", err)
+	}
+
+	// Set connection pool parameters
+	dbInstance.SetMaxOpenConns(1)
+	dbInstance.SetMaxIdleConns(1)
+	dbInstance.SetConnMaxLifetime(30 * time.Minute)
+}
+
+// setupDatabaseTable creates a table if it doesn't already exist
+func setupDatabaseTable(table string) {
+	query := fmt.Sprintf(`
+	CREATE TABLE IF NOT EXISTS %s (
 	    facility INTEGER NOT NULL,
 	    severity INTEGER NOT NULL,
 	    version INTEGER NOT NULL DEFAULT 1,
@@ -79,40 +115,16 @@ func init() {
 	    msg TEXT
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_logs_hostname ON logs(hostname);
-	CREATE INDEX IF NOT EXISTS idx_logs_app_name ON logs(app_name);
-	CREATE INDEX IF NOT EXISTS idx_logs_facility ON logs(facility);
-	CREATE INDEX IF NOT EXISTS idx_logs_severity ON logs(severity);
-	`
+	CREATE INDEX IF NOT EXISTS idx_timestamp ON %s(timestamp);
+	CREATE INDEX IF NOT EXISTS idx_hostname ON %s(hostname);
+	CREATE INDEX IF NOT EXISTS idx_app_name ON %s(app_name);
+	CREATE INDEX IF NOT EXISTS idx_facility ON %s(facility);
+	CREATE INDEX IF NOT EXISTS idx_severity ON %s(severity);
+	`, table, table, table, table, table, table)
 
 	if _, err := dbInstance.Exec(query); err != nil {
-		log.Fatalf("Failed to create logs table: %v", err)
+		log.Fatalf("Failed to create table %s: %v", table, err)
 	}
-
-	// Prepare the INSERT statement for batching
-	insertQuery := `
-		INSERT INTO logs (
-			facility, severity, version, timestamp,
-			hostname, app_name, procid, msgid,
-			structured_data, msg
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-
-	insertStmt, err = dbInstance.Prepare(insertQuery)
-	if err != nil {
-		log.Fatalf("Failed to prepare INSERT statement: %v", err)
-	}
-
-	log.Println("Logs table created or already exists")
-
-	batchParams = make([][]any, 0, maxBatchSize)
-
-	// Start the batch processor
-	go processBatchPeriodically()
-
-	// Start the log cleanup process
-	go performLogCleanupPeriodically()
 }
 
 // GetDBInstance returns the initialized SQLite database instance.
@@ -122,62 +134,75 @@ func GetDBInstance() *sql.DB {
 
 // StoreLog adds a log message to the batch for efficient processing
 func StoreLog(params []any) error {
-	batchMutex.Lock()
-	defer batchMutex.Unlock()
+	batchStoreLogsMutex.Lock()
+	defer batchStoreLogsMutex.Unlock()
 
-	batchParams = append(batchParams, params)
+	batchStoreLogsParams = append(batchStoreLogsParams, params)
 
 	// If we've reached the max batch size, process immediately
-	if len(batchParams) >= maxBatchSize {
-		return processBatch()
+	if len(batchStoreLogsParams) >= maxBatchStoreLogsSize {
+		return processBatchStoreLogs()
 	}
 
 	return nil
 }
 
-// ForceProcessBatch forces immediate processing of the batch queue
+// ForceProcessBatchStoreLogs forces immediate processing of the batch queue
 // This is primarily used for testing to ensure logs are written to the database
-func ForceProcessBatch() error {
-	batchMutex.Lock()
-	defer batchMutex.Unlock()
-	return processBatch()
+func ForceProcessBatchStoreLogs() error {
+	batchStoreLogsMutex.Lock()
+	defer batchStoreLogsMutex.Unlock()
+	return processBatchStoreLogs()
 }
 
-// processBatch processes all pending log entries in a single transaction
-func processBatch() error {
-	if len(batchParams) == 0 {
+// processBatchStoreLogs processes all pending log entries in a single transaction
+func processBatchStoreLogs() error {
+	var insertStatement *sql.Stmt
+
+	if len(batchStoreLogsParams) == 0 {
 		return nil
 	}
 
-	// Start a transaction
-	tx, err := dbInstance.Begin()
+	insertStatement, err := dbInstance.Prepare(`
+		INSERT INTO logs (
+			facility, severity, version, timestamp,
+			hostname, app_name, procid, msgid,
+			structured_data, msg
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+
+	if err != nil {
+		log.Printf("Failed to prepare INSERT statement: %v", err)
+		return err
+	}
+	defer insertStatement.Close()
+
+	transaction, err := dbInstance.Begin()
 	if err != nil {
 		log.Printf("Failed to begin transaction: %v", err)
 		return err
 	}
 
-	// Get transaction statement from our prepared statement
-	txStmt := tx.Stmt(insertStmt)
-	defer txStmt.Close()
+	transactionStatement := transaction.Stmt(insertStatement)
+	defer transactionStatement.Close()
 
 	// Execute each parameter set
-	for _, params := range batchParams {
-		_, err := txStmt.Exec(params...)
+	for _, params := range batchStoreLogsParams {
+		_, err := transactionStatement.Exec(params...)
 		if err != nil {
-			tx.Rollback()
+			transaction.Rollback()
 			log.Printf("Failed to execute batch statement: %v", err)
 			return err
 		}
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
+	if err := transaction.Commit(); err != nil {
 		log.Printf("Failed to commit transaction: %v", err)
 		return err
 	}
 
-	// Clear the batch and release memory
-	batchParams = nil
+	batchStoreLogsParams = nil
 
 	return nil
 }
@@ -188,9 +213,9 @@ func processBatchPeriodically() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		batchMutex.Lock()
-		err := processBatch()
-		batchMutex.Unlock()
+		batchStoreLogsMutex.Lock()
+		err := processBatchStoreLogs()
+		batchStoreLogsMutex.Unlock()
 
 		if err != nil {
 			log.Printf("Error in periodic batch processing: %v", err)
@@ -203,10 +228,8 @@ func cleanupOldLogs() error {
 	// Calculate the cutoff timestamp for deletion (current time - retention period)
 	cutoffTime := time.Now().Add(-time.Duration(utils.LogRetentionMinutes) * time.Minute).UTC().Format(time.RFC3339Nano)
 
-	// Create a query to delete logs older than the cutoff timestamp
 	query := "DELETE FROM logs WHERE timestamp < ?"
 
-	// Execute the deletion
 	result, err := dbInstance.Exec(query, cutoffTime)
 	if err != nil {
 		log.Printf("Failed to delete old logs: %v", err)
@@ -229,11 +252,6 @@ func performLogCleanupPeriodically() {
 	ticker := time.NewTicker(cleanupTick)
 	defer ticker.Stop()
 
-	// Run cleanup immediately at startup
-	if err := cleanupOldLogs(); err != nil {
-		log.Printf("Error in initial log cleanup: %v", err)
-	}
-
 	for range ticker.C {
 		if err := cleanupOldLogs(); err != nil {
 			log.Printf("Error in periodic log cleanup: %v", err)
@@ -254,8 +272,6 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 
 	// Start the count query
 	countQueryBuilder.WriteString("SELECT COUNT(*) FROM logs ")
-
-	// Process query with pagination parameters
 
 	// Build WHERE clause for filtering
 	whereClause := buildWhereClause(filters, cursor, direction, &args)
@@ -337,7 +353,7 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	facets := make(map[string]FacetMetadata)
 
-	// For facets, exclude temporal filters (cursor, date range) to show total state
+	// For facets, exclude temporal filters (date range) to show total state
 	// This ensures live mode facets represent all logs, not just new ones
 	facetFilters := make(map[string]any)
 	for k, v := range filters {
@@ -453,15 +469,7 @@ func GetChartData(filters map[string]any) ([]ChartDataPoint, error) {
 		if endDate, hasEnd := filters["endDate"]; hasEnd {
 			startTime = startDate.(time.Time)
 			endTime = endDate.(time.Time)
-		} else {
-			// If only start date, use it as start and current time as end
-			startTime = startDate.(time.Time)
-			endTime = time.Now()
 		}
-	} else if endDate, hasEnd := filters["endDate"]; hasEnd {
-		// If only end date, use last 24 hours before end date
-		endTime = endDate.(time.Time)
-		startTime = endTime.Add(-24 * time.Hour)
 	} else {
 		// Default to last 24 hours for meaningful chart context
 		endTime = time.Now()
@@ -681,32 +689,4 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 	}
 
 	return strings.Join(conditions, " AND ")
-}
-
-// setupDatabase initializes the database connection
-// Uses in-memory database for tests and file-based for production
-func setupDatabase() {
-	var err error
-	var dbPath string
-
-	if testing.Testing() {
-		dbPath = ":memory:"
-	} else {
-		e, err := os.Executable()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
-	}
-
-	dbInstance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000")
-	if err != nil {
-		log.Fatalf("Failed to connect to SQLite database: %v", err)
-	}
-
-	// Set connection pool parameters
-	dbInstance.SetMaxOpenConns(1)
-	dbInstance.SetMaxIdleConns(1)
-	dbInstance.SetConnMaxLifetime(30 * time.Minute)
 }

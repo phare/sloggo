@@ -51,7 +51,7 @@ func verifyLogEntry(t *testing.T, tc testCase) {
 	var severity, facility int
 
 	// Force batch processing to ensure messages are saved to the database
-	err := db.ForceProcessBatch()
+	err := db.ForceProcessBatchStoreLogs()
 	if err != nil {
 		t.Fatalf("Failed to process batch: %v", err)
 	}
