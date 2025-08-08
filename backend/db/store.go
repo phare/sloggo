@@ -294,18 +294,12 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 	// Add limit
 	queryBuilder.WriteString(fmt.Sprintf(" LIMIT %d", limit))
 
-	// Execute the count query to get total filtered rows
-	var filterCount int
-	err := dbInstance.QueryRow(countQueryBuilder.String(), args...).Scan(&filterCount)
+	// Execute combined count query to get both filtered and total counts in one query
+	var filterCount, totalCount int
+	combinedCountQuery := fmt.Sprintf("SELECT (%s) as filtered_count, (SELECT COUNT(*) FROM logs) as total_count", countQueryBuilder.String())
+	err := dbInstance.QueryRow(combinedCountQuery, args...).Scan(&filterCount, &totalCount)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("error counting filtered logs: %v", err)
-	}
-
-	// Get total row count
-	var totalCount int
-	err = dbInstance.QueryRow("SELECT COUNT(*) FROM logs").Scan(&totalCount)
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf("error counting total logs: %v", err)
+		return nil, 0, 0, fmt.Errorf("error counting logs: %v", err)
 	}
 
 	// Execute the main query
@@ -370,28 +364,19 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	if whereClause != "" {
 		countQuery += " WHERE " + whereClause
 	}
+
 	err := dbInstance.QueryRow(countQuery, countArgs...).Scan(&totalCount)
 	if err != nil {
 		return nil, fmt.Errorf("error counting total filtered rows for facets: %v", err)
 	}
 
-	// Get hostname facets
-	hostnameRows, err := getFacetValues("hostname", facetFilters, 20)
+	// Get severity facets
+	severityRows, err := getFacetValues("severity", facetFilters, 8)
 	if err != nil {
 		return nil, err
 	}
-	facets["hostname"] = FacetMetadata{
-		Rows:  hostnameRows,
-		Total: totalCount,
-	}
-
-	// Get app_name facets
-	appNameRows, err := getFacetValues("app_name", facetFilters, 20)
-	if err != nil {
-		return nil, err
-	}
-	facets["appName"] = FacetMetadata{
-		Rows:  appNameRows,
+	facets["severity"] = FacetMetadata{
+		Rows:  severityRows,
 		Total: totalCount,
 	}
 
@@ -405,76 +390,15 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		Total: totalCount,
 	}
 
-	// Get severity facets
-	severityRows, err := getFacetValues("severity", facetFilters, 24)
-	if err != nil {
-		return nil, err
-	}
-	facets["severity"] = FacetMetadata{
-		Rows:  severityRows,
-		Total: totalCount,
-	}
-
-	// Get procid facets
-	procidRows, err := getFacetValues("procid", facetFilters, 20)
-	if err != nil {
-		return nil, err
-	}
-	facets["procId"] = FacetMetadata{
-		Rows:  procidRows,
-		Total: totalCount,
-	}
-
-	// Get msgid facets
-	msgidRows, err := getFacetValues("msgid", facetFilters, 20)
-	if err != nil {
-		return nil, err
-	}
-	facets["msgId"] = FacetMetadata{
-		Rows:  msgidRows,
-		Total: totalCount,
-	}
-
-	// Get priority min/max
-	minMaxPriority, err := getMinMaxValues("facility * 8 + severity", facetFilters)
-	if err != nil {
-		return nil, err
-	}
-	facets["priority"] = FacetMetadata{
-		Rows:  []FacetRow{},
-		Total: totalCount,
-		Min:   minMaxPriority[0],
-		Max:   minMaxPriority[1],
-	}
-
 	return facets, nil
 }
 
 // GetChartData retrieves time-series data for charts
-func GetChartData(filters map[string]any) ([]ChartDataPoint, error) {
-	// For chart data, exclude temporal cursor constraints to show broader context
-	// This ensures live mode charts show meaningful time ranges, not just new data points
-	chartFilters := make(map[string]any)
-	for k, v := range filters {
-		if k != "startDate" && k != "endDate" {
-			chartFilters[k] = v
-		}
-	}
-
-	// Determine time range for chart data
-	var startTime, endTime time.Time
-
-	// Check if explicit date range is provided in original filters
-	if startDate, hasStart := filters["startDate"]; hasStart {
-		if endDate, hasEnd := filters["endDate"]; hasEnd {
-			startTime = startDate.(time.Time)
-			endTime = endDate.(time.Time)
-		}
-	} else {
-		// Default to last 24 hours for meaningful chart context
-		endTime = time.Now()
-		startTime = endTime.Add(-24 * time.Hour)
-	}
+func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, error) {
+	// We always use the cursor as the end time for chart data
+	// and go back 24 hours to get the last 24 hours of data.
+	filters["endDate"] = cursor
+	filters["startDate"] = cursor.Add(-24 * time.Hour)
 
 	// Build query for chart data
 	queryBuilder := strings.Builder{}
@@ -495,16 +419,11 @@ func GetChartData(filters map[string]any) ([]ChartDataPoint, error) {
 	`)
 
 	// Add WHERE clause for filtering (excluding temporal constraints)
-	whereClause := buildWhereClause(chartFilters, time.Time{}, "", &args)
+	whereClause := buildWhereClause(filters, time.Time{}, "", &args)
 	if whereClause != "" {
 		queryBuilder.WriteString(" WHERE ")
 		queryBuilder.WriteString(whereClause)
-		queryBuilder.WriteString(" AND timestamp BETWEEN ? AND ?")
-	} else {
-		queryBuilder.WriteString(" WHERE timestamp BETWEEN ? AND ?")
 	}
-
-	args = append(args, startTime.Format(time.RFC3339Nano), endTime.Format(time.RFC3339Nano))
 
 	// Group by hour
 	queryBuilder.WriteString(" GROUP BY strftime('%Y-%m-%d %H', timestamp) ORDER BY ts ASC")
@@ -587,49 +506,11 @@ func getFacetValues(field string, filters map[string]any, limit int) ([]FacetRow
 	return facetRows, nil
 }
 
-// Helper function to get min/max values for a field
-func getMinMaxValues(field string, filters map[string]any) ([]*int, error) {
-	queryBuilder := strings.Builder{}
-	args := []any{}
-
-	// Fix the SQL syntax by removing the "as" keyword in the field parameter
-	// and using direct column aliases instead
-	queryBuilder.WriteString(fmt.Sprintf("SELECT MIN(%s) as min_val, MAX(%s) as max_val FROM logs", field, field))
-
-	whereClause := buildWhereClause(filters, time.Time{}, "", &args)
-	if whereClause != "" {
-		queryBuilder.WriteString(" WHERE ")
-		queryBuilder.WriteString(whereClause)
-	}
-
-	// Execute query
-	var minVal, maxVal sql.NullInt64
-	err := dbInstance.QueryRow(queryBuilder.String(), args...).Scan(&minVal, &maxVal)
-	if err != nil {
-		return nil, fmt.Errorf("error querying min/max values for %s: %v", field, err)
-	}
-
-	result := []*int{nil, nil}
-	if minVal.Valid {
-		min := int(minVal.Int64)
-		result[0] = &min
-	}
-	if maxVal.Valid {
-		max := int(maxVal.Int64)
-		result[1] = &max
-	}
-
-	return result, nil
-}
-
 // Helper function to build WHERE clause from filters
 func buildWhereClause(filters map[string]any, cursor time.Time, direction string, args *[]any) string {
 	conditions := []string{}
 
-	// Add timestamp condition for pagination (exclusive)
 	if !cursor.IsZero() {
-		// For "prev" direction with DESC order, we want logs newer than cursor
-		// For "next" direction with DESC order, we want logs older than cursor
 		if direction == "prev" {
 			conditions = append(conditions, "timestamp > ?")
 		} else {
@@ -648,13 +529,14 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 			conditions = append(conditions, "app_name LIKE ?")
 			*args = append(*args, fmt.Sprintf("%%%s%%", value.(string)))
 		case "procId":
-			conditions = append(conditions, "procid LIKE ?")
-			*args = append(*args, fmt.Sprintf("%%%s%%", value.(string)))
+			conditions = append(conditions, "procid = ?")
+			*args = append(*args, value.(string))
 		case "msgId":
-			conditions = append(conditions, "msgid LIKE ?")
-			*args = append(*args, fmt.Sprintf("%%%s%%", value.(string)))
+			conditions = append(conditions, "msgid = ?")
+			*args = append(*args, value.(string))
 		case "facility":
 			facilities := value.([]int)
+
 			if len(facilities) > 0 {
 				placeholders := make([]string, len(facilities))
 				for i, f := range facilities {
@@ -673,12 +555,6 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 				}
 				conditions = append(conditions, fmt.Sprintf("severity IN (%s)", strings.Join(placeholders, ",")))
 			}
-		case "priorityMin":
-			conditions = append(conditions, "facility * 8 + severity >= ?")
-			*args = append(*args, value.(int))
-		case "priorityMax":
-			conditions = append(conditions, "facility * 8 + severity <= ?")
-			*args = append(*args, value.(int))
 		case "startDate":
 			conditions = append(conditions, "timestamp >= ?")
 			*args = append(*args, value.(time.Time).Format(time.RFC3339Nano))
