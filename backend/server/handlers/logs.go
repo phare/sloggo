@@ -58,27 +58,6 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse cursor (timestamp) for pagination
-	var cursor time.Time
-	now := time.Now().UTC().Add(1 * time.Minute) // Allow for clock skew
-
-	if cursorStr := query.Get("cursor"); cursorStr != "" {
-		if parsedCursor, err := strconv.ParseInt(cursorStr, 10, 64); err == nil {
-			cursorTime := time.Unix(0, parsedCursor*int64(time.Millisecond))
-			if cursorTime.After(now) {
-				cursor = now
-			} else {
-				cursor = cursorTime
-			}
-		} else {
-			// Use current time if parsing fails
-			cursor = now
-		}
-	} else {
-		// Default to current time if no cursor provided
-		cursor = now
-	}
-
 	// Direction for pagination
 	direction := query.Get("direction")
 	if direction == "" {
@@ -114,11 +93,13 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	if facilityStr := query.Get("facility"); facilityStr != "" {
 		facilityValues := strings.Split(facilityStr, ",")
 		facilities := make([]int, 0, len(facilityValues))
+
 		for _, v := range facilityValues {
 			if facility, err := strconv.Atoi(v); err == nil {
 				facilities = append(facilities, facility)
 			}
 		}
+
 		if len(facilities) > 0 {
 			filters["facility"] = facilities
 		}
@@ -128,35 +109,47 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	if severityStr := query.Get("severity"); severityStr != "" {
 		severityValues := strings.Split(severityStr, ",")
 		severities := make([]int, 0, len(severityValues))
+
 		for _, v := range severityValues {
 			if severity, err := strconv.Atoi(v); err == nil {
 				severities = append(severities, severity)
 			}
 		}
+
 		if len(severities) > 0 {
 			filters["severity"] = severities
 		}
 	}
 
-	// Priority filter
-	if priorityStr := query.Get("priority"); priorityStr != "" {
-		priorityValues := strings.Split(priorityStr, "-")
-		if len(priorityValues) == 2 {
-			minPriority, minErr := strconv.Atoi(priorityValues[0])
-			maxPriority, maxErr := strconv.Atoi(priorityValues[1])
-			if minErr == nil && maxErr == nil {
-				filters["priorityMin"] = minPriority
-				filters["priorityMax"] = maxPriority
+	// Parse cursor (timestamp) for pagination
+	var cursor time.Time
+	now := time.Now().UTC().Add(1 * time.Minute) // Allow for clock skew
+
+	if cursorStr := query.Get("cursor"); cursorStr != "" {
+		if parsedCursor, err := strconv.ParseInt(cursorStr, 10, 64); err == nil {
+			cursorTime := time.Unix(0, parsedCursor*int64(time.Millisecond))
+			if cursorTime.After(now) {
+				cursor = now
+			} else {
+				cursor = cursorTime
 			}
+		} else {
+			// Use current time if parsing fails
+			cursor = now
 		}
+	} else {
+		// Default to current time if no cursor provided
+		cursor = now
 	}
 
 	// Date range filter
 	if dateStr := query.Get("timestamp"); dateStr != "" {
 		dateValues := strings.Split(dateStr, "-")
+
 		if len(dateValues) == 2 {
 			startMillis, startErr := strconv.ParseInt(dateValues[0], 10, 64)
 			endMillis, endErr := strconv.ParseInt(dateValues[1], 10, 64)
+
 			if startErr == nil && endErr == nil {
 				filters["startDate"] = time.Unix(0, startMillis*int64(time.Millisecond))
 				filters["endDate"] = time.Unix(0, endMillis*int64(time.Millisecond))
@@ -167,8 +160,10 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Sort parameter
 	sortField := "timestamp"
 	sortOrder := "DESC"
+
 	if sortStr := query.Get("sort"); sortStr != "" {
 		sortParts := strings.Split(sortStr, ".")
+
 		if len(sortParts) == 2 {
 			sortField = sortParts[0]
 			if sortParts[1] == "asc" {
@@ -194,7 +189,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get chart data
-	chartData, err := db.GetChartData(filters)
+	chartData, err := db.GetChartData(cursor, filters)
 	if err != nil {
 		log.Printf("Error fetching chart data: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
