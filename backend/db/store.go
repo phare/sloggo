@@ -16,7 +16,8 @@ import (
 	"sloggo/models"
 	"sloggo/utils"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
+	"github.com/qustavo/sqlhooks/v2"
 )
 
 var (
@@ -77,6 +78,13 @@ func setupDatabase() {
 	var err error
 	var dbPath string
 
+	sqlDriver := "sqlite3"
+
+	if utils.Debug {
+		sqlDriver = "sqlite3hooks"
+		sql.Register(sqlDriver, sqlhooks.Wrap(&sqlite3.SQLiteDriver{}, &Hooks{}))
+	}
+
 	if testing.Testing() {
 		dbPath = ":memory:"
 	} else {
@@ -88,7 +96,21 @@ func setupDatabase() {
 		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
 	}
 
-	dbInstance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000")
+	connectionString := dbPath + "?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000"
+
+	// Write connection pool - single connection for write operations
+	dbInstance, err = sql.Open(sqlDriver, connectionString)
+	if err != nil {
+		log.Fatalf("Failed to connect to SQLite write database: %v", err)
+	}
+
+	// Set write connection pool parameters - single connection
+	writeDbInstance.SetMaxOpenConns(1)
+	writeDbInstance.SetMaxIdleConns(1)
+	writeDbInstance.SetConnMaxLifetime(30 * time.Minute)
+
+	// Read connection pool - multiple connections for read operations
+	readDbInstance, err = sql.Open(sqlDriver, connectionString)
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite database: %v", err)
 	}
