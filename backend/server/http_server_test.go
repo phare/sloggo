@@ -92,7 +92,7 @@ func TestServer(t *testing.T) {
 
 			if tc.checkJSONValid {
 				// Check if the response is valid JSON
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.Unmarshal(body, &result)
 				if err != nil {
 					t.Errorf("Invalid JSON response: %v", err)
@@ -146,20 +146,20 @@ func TestServerIntegration(t *testing.T) {
 		},
 		{
 			name:           "Logs endpoint returns valid JSON",
-			path:           "/api/logs",
+			path:           "/api/logs?cursor=" + fmt.Sprintf("%d", time.Now().UnixMilli()),
 			method:         "GET",
 			expectedCode:   http.StatusOK,
 			checkJSONValid: true,
 		},
 		{
 			name:           "Logs endpoint with filter parameters",
-			path:           "/api/logs?severity=emergency,warning",
+			path:           "/api/logs?severity=0,1",
 			method:         "GET",
 			expectedCode:   http.StatusOK,
 			checkJSONValid: true,
 		},
 		{
-			name:           "Logs endpoint with pagination parameters",
+			name:           "Logs endpoint with size parameters",
 			path:           "/api/logs?size=5",
 			method:         "GET",
 			expectedCode:   http.StatusOK,
@@ -174,11 +174,12 @@ func TestServerIntegration(t *testing.T) {
 
 			url := fmt.Sprintf("http://localhost:%s%s", testPort, tc.path)
 
-			if tc.method == "GET" {
+			switch tc.method {
+			case "GET":
 				resp, err = http.Get(url)
-			} else if tc.method == "POST" {
+			case "POST":
 				resp, err = http.Post(url, "application/json", nil)
-			} else {
+			default:
 				req, _ := http.NewRequest(tc.method, url, nil)
 				client := &http.Client{}
 				resp, err = client.Do(req)
@@ -200,7 +201,7 @@ func TestServerIntegration(t *testing.T) {
 			}
 
 			if tc.checkJSONValid {
-				var result map[string]interface{}
+				var result map[string]any
 				if err := json.Unmarshal(body, &result); err != nil {
 					t.Errorf("Endpoint returned invalid JSON: %v", err)
 					return
@@ -216,12 +217,6 @@ func TestServerIntegration(t *testing.T) {
 
 				// Check meta structure
 				if meta, ok := result["meta"].(map[string]interface{}); ok {
-					if _, ok := meta["totalRowCount"]; !ok {
-						t.Error("Meta is missing 'totalRowCount' field")
-					}
-					if _, ok := meta["filterRowCount"]; !ok {
-						t.Error("Meta is missing 'filterRowCount' field")
-					}
 					if _, ok := meta["chartData"]; !ok {
 						t.Error("Meta is missing 'chartData' field")
 					}

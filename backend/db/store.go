@@ -79,20 +79,13 @@ func init() {
 // Uses in-memory database for tests and file-based for production
 func setupDatabase() {
 	var err error
-	var dbPath string
 
-	if testing.Testing() {
-		dbPath = ":memory:"
-	} else {
-		e, err := os.Executable()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
+	e, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	base := "file:" + dbPath
+	base := "file:" + filepath.Join(path.Dir(e), ".sqlite/logs.db")
 
 	writeDSN := base + "?_journal_mode=WAL" +
 		"&_synchronous=NORMAL" +
@@ -107,6 +100,11 @@ func setupDatabase() {
 		"&_busy_timeout=5000" +
 		"&_cache_size=-4096" + // ~4 MiB per read connection
 		"&_mmap_size=134217728" // 128 MiB memory map for faster reads (virtual memory; not pre-allocated)
+
+	if testing.Testing() {
+		writeDSN = "file::memory:?cache=shared"
+		readDSN = "file::memory:?cache=shared"
+	}
 
 	// Write connection pool - single connection for write operations
 	writeDbInstance, err = sql.Open("sqlite3", writeDSN)
