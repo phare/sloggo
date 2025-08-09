@@ -16,6 +16,8 @@ import (
 
 	"sloggo/models"
 	"sloggo/utils"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -30,10 +32,8 @@ var (
 	// Cache structures
 	facetCacheMutex sync.RWMutex
 	facetCache      map[string]facetCacheEntry
-	chartCacheMutex sync.RWMutex
-	chartCache      map[string]chartCacheEntry
-	maxCacheEntries = 50
-	cacheTTL        = 5 * time.Minute
+	maxCacheEntries = 25
+	cacheTTL        = 3 * time.Minute
 )
 
 // ChartDataPoint represents a single point of log data for charts
@@ -66,12 +66,6 @@ type facetCacheEntry struct {
 	timestamp time.Time
 }
 
-// chartCacheEntry represents a cached chart result with expiration
-type chartCacheEntry struct {
-	data      []ChartDataPoint
-	timestamp time.Time
-}
-
 func init() {
 	// Set up database connection
 	setupDatabase()
@@ -83,7 +77,6 @@ func init() {
 
 	// Initialize caches
 	facetCache = make(map[string]facetCacheEntry)
-	chartCache = make(map[string]chartCacheEntry)
 
 	// Start the batch processor
 	go processBatchPeriodically()
@@ -173,6 +166,9 @@ func setupDatabaseTable(table string) {
 	CREATE INDEX IF NOT EXISTS idx_severity ON %s(severity);
 	CREATE INDEX IF NOT EXISTS idx_severity_timestamp ON %s(severity, timestamp);
 	CREATE INDEX IF NOT EXISTS idx_facility_timestamp ON %s(facility, timestamp);
+
+	-- Run ANALYZE to collect statistics for query planning
+	ANALYZE;
 	`, table, table, table, table, table, table)
 
 	if _, err := writeDbInstance.Exec(query); err != nil {
@@ -333,15 +329,6 @@ func cleanupExpiredCacheEntries() {
 		}
 	}
 	facetCacheMutex.Unlock()
-
-	// Clean chart cache
-	chartCacheMutex.Lock()
-	for key, entry := range chartCache {
-		if now.Sub(entry.timestamp) > cacheTTL {
-			delete(chartCache, key)
-		}
-	}
-	chartCacheMutex.Unlock()
 }
 
 // generateCacheKey creates a deterministic string key for cache lookups based on filters
@@ -413,34 +400,6 @@ func limitCacheSize() {
 		}
 	}
 	facetCacheMutex.Unlock()
-
-	// Limit chart cache size
-	chartCacheMutex.Lock()
-	if len(chartCache) > maxCacheEntries {
-		// Find oldest entries to remove
-		entries := make([]struct {
-			key       string
-			timestamp time.Time
-		}, 0, len(chartCache))
-
-		for k, v := range chartCache {
-			entries = append(entries, struct {
-				key       string
-				timestamp time.Time
-			}{k, v.timestamp})
-		}
-
-		// Sort by timestamp (oldest first)
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].timestamp.Before(entries[j].timestamp)
-		})
-
-		// Remove oldest entries to get back to half capacity
-		for i := 0; i < len(entries)-maxCacheEntries/2; i++ {
-			delete(chartCache, entries[i].key)
-		}
-	}
-	chartCacheMutex.Unlock()
 }
 
 // GetLogs retrieves logs from the database based on filters
@@ -580,27 +539,6 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	chartFilters["endDate"] = endDate
 	chartFilters["startDate"] = startDate
 
-	// Generate cache key that includes time range and filters
-	cacheKey := fmt.Sprintf("start:%s|end:%s|%s",
-		startDate.Format(time.RFC3339),
-		endDate.Format(time.RFC3339),
-		generateCacheKey(chartFilters))
-
-	// Check if we have a cached result
-	chartCacheMutex.RLock()
-	if entry, found := chartCache[cacheKey]; found {
-		if time.Since(entry.timestamp) < cacheTTL {
-			chartCacheMutex.RUnlock()
-
-			if utils.Debug {
-				log.Printf("CACHE HIT: GetChartData with %d filters", len(chartFilters))
-			}
-
-			return entry.data, nil
-		}
-	}
-	chartCacheMutex.RUnlock()
-
 	// Build query for chart data
 	queryBuilder := strings.Builder{}
 	args := []any{}
@@ -657,17 +595,6 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 
 		chartData = append(chartData, point)
 	}
-
-	// Store in cache
-	chartCacheMutex.Lock()
-	chartCache[cacheKey] = chartCacheEntry{
-		data:      chartData,
-		timestamp: time.Now(),
-	}
-	chartCacheMutex.Unlock()
-
-	// Ensure cache doesn't grow too large
-	go limitCacheSize()
 
 	return chartData, nil
 }
