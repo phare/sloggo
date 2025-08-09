@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sloggo/db"
 	"sloggo/models"
+	"sloggo/utils"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,8 @@ type InfiniteQueryMeta struct {
 
 // LogsHandler handles the API endpoint for logs
 func LogsHandler(w http.ResponseWriter, r *http.Request) {
+	requestStartTime := time.Now()
+
 	// Set CORS headers for cross-origin requests in development
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -180,27 +183,44 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	wg.Add(3)
 
+	// Time for all database operations
+	queryStartTime := time.Now()
+
 	// Get logs from database
 	go func() {
 		defer wg.Done()
 		logs, logsErr = db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
+
+		if utils.Debug {
+			log.Printf("⚡ GetLogs execution time: %v", time.Since(queryStartTime))
+		}
 	}()
 
 	// Get facets for filtering
 	go func() {
 		defer wg.Done()
 		facets, facetsErr = db.GetFacets(filters)
+
+		if utils.Debug {
+			log.Printf("DEBUG: GetFacets execution time: %v", time.Since(queryStartTime))
+		}
 	}()
 
 	// Get chart data
 	go func() {
 		defer wg.Done()
 		chartData, chartErr = db.GetChartData(cursor, filters)
+
+		if utils.Debug {
+			log.Printf("⚡️ GetChartData execution time: %v", time.Since(queryStartTime))
+		}
 	}()
 
 	// Wait for all goroutines to complete
 	wg.Wait()
-
+	if utils.Debug {
+		log.Printf("⚡️ Total database operations execution time: %v", time.Since(queryStartTime))
+	}
 	// Check for errors
 	if logsErr != nil {
 		log.Printf("Error fetching logs: %v", logsErr)
@@ -221,6 +241,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process logs for API response format
+	processStartTime := time.Now()
 	for i := range logs {
 		// Parse structured data JSON if present
 		structData := make(map[string]map[string]string)
@@ -242,6 +263,9 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if utils.Debug {
+		log.Printf("⚡️ Log processing time: %v", time.Since(processStartTime))
+	}
 	// Determine next and previous cursors
 	var nextCursor, prevCursor *int64 = nil, nil
 	if len(logs) > 0 {
@@ -252,6 +276,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare the response
+	prepareResponseStartTime := time.Now()
 	response := LogsResponse{
 		Data: logs,
 		Meta: InfiniteQueryMeta{
@@ -263,13 +288,23 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		PrevCursor: prevCursor,
 	}
 
+	if utils.Debug {
+		log.Printf("⚡️ Response preparation time: %v", time.Since(prepareResponseStartTime))
+	}
+
 	// Set content type and encode response
 	w.Header().Set("Content-Type", "application/json")
 
 	// Send the response to the client
+	encodeStartTime := time.Now()
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Error encoding response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
+	}
+
+	if utils.Debug {
+		log.Printf("⚡️ JSON encoding time: %v", time.Since(encodeStartTime))
+		log.Printf("⚡️ Total request handling time: %v", time.Since(requestStartTime))
 	}
 }
