@@ -8,6 +8,7 @@ import (
 	"sloggo/models"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -172,26 +173,52 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Parallelize database calls for better performance
+	var wg sync.WaitGroup
+	var logs []models.LogEntry
+	var totalCount, filterCount int
+	var facets map[string]db.FacetMetadata
+	var chartData []db.ChartDataPoint
+	var logsErr, facetsErr, chartErr error
+
+	wg.Add(3)
+
 	// Get logs from database
-	logs, totalCount, filterCount, err := db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
-	if err != nil {
-		log.Printf("Error fetching logs: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+	go func() {
+		defer wg.Done()
+		logs, totalCount, filterCount, logsErr = db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
+	}()
 
 	// Get facets for filtering
-	facets, err := db.GetFacets(filters)
-	if err != nil {
-		log.Printf("Error fetching facets: %v", err)
+	go func() {
+		defer wg.Done()
+		facets, facetsErr = db.GetFacets(filters)
+	}()
+
+	// Get chart data
+	go func() {
+		defer wg.Done()
+		chartData, chartErr = db.GetChartData(cursor, filters)
+	}()
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Check for errors
+	if logsErr != nil {
+		log.Printf("Error fetching logs: %v", logsErr)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Get chart data
-	chartData, err := db.GetChartData(cursor, filters)
-	if err != nil {
-		log.Printf("Error fetching chart data: %v", err)
+	if facetsErr != nil {
+		log.Printf("Error fetching facets: %v", facetsErr)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if chartErr != nil {
+		log.Printf("Error fetching chart data: %v", chartErr)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
