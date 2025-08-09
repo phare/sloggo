@@ -523,11 +523,11 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 	for key, value := range filters {
 		switch key {
 		case "hostname":
-			conditions = append(conditions, "hostname LIKE ?")
-			*args = append(*args, fmt.Sprintf("%%%s%%", value.(string)))
+			conditions = append(conditions, "hostname = ?")
+			*args = append(*args, value.(string))
 		case "appName":
-			conditions = append(conditions, "app_name LIKE ?")
-			*args = append(*args, fmt.Sprintf("%%%s%%", value.(string)))
+			conditions = append(conditions, "app_name = ?")
+			*args = append(*args, value.(string))
 		case "procId":
 			conditions = append(conditions, "procid = ?")
 			*args = append(*args, value.(string))
