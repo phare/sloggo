@@ -22,7 +22,8 @@ import (
 
 var (
 	dbDirectory           string
-	dbInstance            *sql.DB
+	writeDbInstance       *sql.DB
+	readDbInstance        *sql.DB
 	batchStoreLogsMutex   sync.Mutex
 	batchStoreLogsParams  [][]any
 	maxBatchStoreLogsSize = 10000
@@ -72,7 +73,7 @@ func init() {
 	go performLogCleanupPeriodically()
 }
 
-// setupDatabase initializes the database connection
+// setupDatabase initializes the database connections
 // Uses in-memory database for tests and file-based for production
 func setupDatabase() {
 	var err error
@@ -99,7 +100,7 @@ func setupDatabase() {
 	connectionString := dbPath + "?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000"
 
 	// Write connection pool - single connection for write operations
-	dbInstance, err = sql.Open(sqlDriver, connectionString)
+	writeDbInstance, err = sql.Open(sqlDriver, connectionString)
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite write database: %v", err)
 	}
@@ -112,13 +113,13 @@ func setupDatabase() {
 	// Read connection pool - multiple connections for read operations
 	readDbInstance, err = sql.Open(sqlDriver, connectionString)
 	if err != nil {
-		log.Fatalf("Failed to connect to SQLite database: %v", err)
+		log.Fatalf("Failed to connect to SQLite read database: %v", err)
 	}
 
-	// Set connection pool parameters
-	dbInstance.SetMaxOpenConns(1)
-	dbInstance.SetMaxIdleConns(1)
-	dbInstance.SetConnMaxLifetime(30 * time.Minute)
+	// Set read connection pool parameters - multiple connections
+	readDbInstance.SetMaxOpenConns(10)
+	readDbInstance.SetMaxIdleConns(5)
+	readDbInstance.SetConnMaxLifetime(30 * time.Minute)
 }
 
 // setupDatabaseTable creates a table if it doesn't already exist
@@ -137,21 +138,27 @@ func setupDatabaseTable(table string) {
 	    msg TEXT
 	);
 
+	-- Add indexes for common filter combinations
 	CREATE INDEX IF NOT EXISTS idx_timestamp ON %s(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_hostname ON %s(hostname);
 	CREATE INDEX IF NOT EXISTS idx_app_name ON %s(app_name);
 	CREATE INDEX IF NOT EXISTS idx_facility ON %s(facility);
 	CREATE INDEX IF NOT EXISTS idx_severity ON %s(severity);
-	`, table, table, table, table, table, table)
+	CREATE INDEX IF NOT EXISTS idx_severity_timestamp ON %s(severity, timestamp);
+	CREATE INDEX IF NOT EXISTS idx_facility_timestamp ON %s(facility, timestamp);
+	CREATE INDEX IF NOT EXISTS idx_severity_facility_timestamp ON %s(severity, facility, timestamp);
+	CREATE INDEX IF NOT EXISTS idx_hostname_timestamp ON %s(hostname, timestamp);
+	CREATE INDEX IF NOT EXISTS idx_app_name_timestamp ON %s(app_name, timestamp);
+	`, table, table, table, table, table, table, table, table, table, table, table)
 
-	if _, err := dbInstance.Exec(query); err != nil {
+	if _, err := writeDbInstance.Exec(query); err != nil {
 		log.Fatalf("Failed to create table %s: %v", table, err)
 	}
 }
 
 // GetDBInstance returns the initialized SQLite database instance.
 func GetDBInstance() *sql.DB {
-	return dbInstance
+	return writeDbInstance
 }
 
 // StoreLog adds a log message to the batch for efficient processing
@@ -185,7 +192,7 @@ func processBatchStoreLogs() error {
 		return nil
 	}
 
-	insertStatement, err := dbInstance.Prepare(`
+	insertStatement, err := writeDbInstance.Prepare(`
 		INSERT INTO logs (
 			facility, severity, version, timestamp,
 			hostname, app_name, procid, msgid,
@@ -200,7 +207,7 @@ func processBatchStoreLogs() error {
 	}
 	defer insertStatement.Close()
 
-	transaction, err := dbInstance.Begin()
+	transaction, err := writeDbInstance.Begin()
 	if err != nil {
 		log.Printf("Failed to begin transaction: %v", err)
 		return err
@@ -252,7 +259,7 @@ func cleanupOldLogs() error {
 
 	query := "DELETE FROM logs WHERE timestamp < ?"
 
-	result, err := dbInstance.Exec(query, cutoffTime)
+	result, err := writeDbInstance.Exec(query, cutoffTime)
 	if err != nil {
 		log.Printf("Failed to delete old logs: %v", err)
 		return err
@@ -319,13 +326,13 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 	// Execute combined count query to get both filtered and total counts in one query
 	var filterCount, totalCount int
 	combinedCountQuery := fmt.Sprintf("SELECT (%s) as filtered_count, (SELECT COUNT(*) FROM logs) as total_count", countQueryBuilder.String())
-	err := dbInstance.QueryRow(combinedCountQuery, args...).Scan(&filterCount, &totalCount)
+	err := readDbInstance.QueryRow(combinedCountQuery, args...).Scan(&filterCount, &totalCount)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("error counting logs: %v", err)
 	}
 
 	// Execute the main query
-	rows, err := dbInstance.Query(queryBuilder.String(), args...)
+	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("error querying logs: %v", err)
 	}
@@ -417,10 +424,15 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 
 // GetChartData retrieves time-series data for charts
 func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, error) {
-	// We always use the cursor as the end time for chart data
+	chartFilters := make(map[string]any)
+	for k, v := range filters {
+		chartFilters[k] = v
+	}
+
+	// We always use the cursor set to the next hour as the end time for chart data
 	// and go back 24 hours to get the last 24 hours of data.
-	filters["endDate"] = cursor
-	filters["startDate"] = cursor.Add(-24 * time.Hour)
+	chartFilters["endDate"] = cursor.Truncate(time.Hour).Add(time.Hour)
+	chartFilters["startDate"] = cursor.Add(-24 * time.Hour)
 
 	// Build query for chart data
 	queryBuilder := strings.Builder{}
@@ -441,7 +453,7 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	`)
 
 	// Add WHERE clause for filtering (excluding temporal constraints)
-	whereClause := buildWhereClause(filters, time.Time{}, "", &args)
+	whereClause := buildWhereClause(chartFilters, time.Time{}, "", &args)
 	if whereClause != "" {
 		queryBuilder.WriteString(" WHERE ")
 		queryBuilder.WriteString(whereClause)
@@ -451,7 +463,7 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	queryBuilder.WriteString(" GROUP BY strftime('%Y-%m-%d %H', timestamp) ORDER BY ts ASC")
 
 	// Execute query
-	rows, err := dbInstance.Query(queryBuilder.String(), args...)
+	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("error querying chart data: %v", err)
 	}
@@ -499,7 +511,7 @@ func getFacetValues(field string, filters map[string]any, limit int) ([]FacetRow
 	queryBuilder.WriteString(fmt.Sprintf(" GROUP BY %s ORDER BY total DESC LIMIT %d", field, limit))
 
 	// Execute query
-	rows, err := dbInstance.Query(queryBuilder.String(), args...)
+	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("error querying facet values for %s: %v", field, err)
 	}
@@ -530,7 +542,11 @@ func getFacetValues(field string, filters map[string]any, limit int) ([]FacetRow
 
 // Helper function to build WHERE clause from filters
 func buildWhereClause(filters map[string]any, cursor time.Time, direction string, args *[]any) string {
-	conditions := []string{}
+	if len(filters) == 0 && cursor.IsZero() {
+		return ""
+	}
+
+	conditions := make([]string, 0, len(filters)+1)
 
 	if !cursor.IsZero() {
 		if direction == "prev" {
