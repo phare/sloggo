@@ -576,30 +576,19 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 
 	conditions := make([]string, 0, len(filters)+1)
 
-	if !cursor.IsZero() {
-		if direction == "prev" {
-			conditions = append(conditions, "timestamp > ?")
-		} else {
-			conditions = append(conditions, "timestamp < ?")
-		}
-		*args = append(*args, cursor.Format(time.RFC3339Nano))
-	}
-
 	// Add filter conditions
 	for key, value := range filters {
 		switch key {
-		case "hostname":
-			conditions = append(conditions, "hostname = ?")
-			*args = append(*args, value.(string))
-		case "appName":
-			conditions = append(conditions, "app_name = ?")
-			*args = append(*args, value.(string))
-		case "procId":
-			conditions = append(conditions, "procid = ?")
-			*args = append(*args, value.(string))
-		case "msgId":
-			conditions = append(conditions, "msgid = ?")
-			*args = append(*args, value.(string))
+		case "severity":
+			severities := value.([]int)
+			if len(severities) > 0 {
+				placeholders := make([]string, len(severities))
+				for i, s := range severities {
+					placeholders[i] = "?"
+					*args = append(*args, s)
+				}
+				conditions = append(conditions, fmt.Sprintf("severity IN (%s)", strings.Join(placeholders, ",")))
+			}
 		case "facility":
 			facilities := value.([]int)
 
@@ -611,16 +600,18 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 				}
 				conditions = append(conditions, fmt.Sprintf("facility IN (%s)", strings.Join(placeholders, ",")))
 			}
-		case "severity":
-			severities := value.([]int)
-			if len(severities) > 0 {
-				placeholders := make([]string, len(severities))
-				for i, s := range severities {
-					placeholders[i] = "?"
-					*args = append(*args, s)
-				}
-				conditions = append(conditions, fmt.Sprintf("severity IN (%s)", strings.Join(placeholders, ",")))
-			}
+		case "hostname":
+			conditions = append(conditions, "hostname = ?")
+			*args = append(*args, value.(string))
+		case "procId":
+			conditions = append(conditions, "procid = ?")
+			*args = append(*args, value.(string))
+		case "appName":
+			conditions = append(conditions, "app_name = ?")
+			*args = append(*args, value.(string))
+		case "msgId":
+			conditions = append(conditions, "msgid = ?")
+			*args = append(*args, value.(string))
 		case "startDate":
 			conditions = append(conditions, "timestamp >= ?")
 			*args = append(*args, value.(time.Time).Format(time.RFC3339Nano))
@@ -628,6 +619,15 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 			conditions = append(conditions, "timestamp <= ?")
 			*args = append(*args, value.(time.Time).Format(time.RFC3339Nano))
 		}
+	}
+
+	if !cursor.IsZero() {
+		if direction == "prev" {
+			conditions = append(conditions, "timestamp > ?")
+		} else {
+			conditions = append(conditions, "timestamp < ?")
+		}
+		*args = append(*args, cursor.Format(time.RFC3339Nano))
 	}
 
 	return strings.Join(conditions, " AND ")
