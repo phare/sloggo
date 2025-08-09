@@ -4,20 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
-	"path"
-	"path/filepath"
+	"sloggo/models"
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
-	"sloggo/models"
-	"sloggo/utils"
-
-	"github.com/mattn/go-sqlite3"
-	"github.com/qustavo/sqlhooks/v2"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -78,9 +71,12 @@ func setupDatabase() {
 
 	sqlDriver := "sqlite3"
 
-	if utils.Debug {
-		sqlDriver = "sqlite3hooks"
-		sql.Register(sqlDriver, sqlhooks.Wrap(&sqlite3.SQLiteDriver{}, &Hooks{}))
+// Sets up the database connection
+func setupDatabase() {
+	// Get directory for database
+	dir := GetDBDirectory()
+	if dir == "" {
+		log.Fatal("Database directory not set")
 	}
 
 	if testing.Testing() {
