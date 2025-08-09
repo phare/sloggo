@@ -202,7 +202,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		facets, facetsErr = db.GetFacets(filters)
 
 		if utils.Debug {
-			log.Printf("DEBUG: GetFacets execution time: %v", time.Since(queryStartTime))
+			log.Printf("⚡ GetFacets execution time: %v", time.Since(queryStartTime))
 		}
 	}()
 
@@ -305,6 +305,6 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if utils.Debug {
 		log.Printf("⚡️ JSON encoding time: %v", time.Since(encodeStartTime))
-		log.Printf("⚡️ Total request handling time: %v", time.Since(requestStartTime))
+		log.Printf("⚡️ Total request handling time: %v\n\n", time.Since(requestStartTime))
 	}
 }
