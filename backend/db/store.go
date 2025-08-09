@@ -286,52 +286,33 @@ func performLogCleanupPeriodically() {
 }
 
 // GetLogs retrieves logs from the database based on filters
-func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, int, int, error) {
+func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, error) {
 	// Build query
 	queryBuilder := strings.Builder{}
-	countQueryBuilder := strings.Builder{}
 	filterQueryBuilder := strings.Builder{}
 	args := []any{}
 
-	// Start the main query
 	queryBuilder.WriteString("SELECT rowid, facility, severity, timestamp, hostname, app_name, procid, msgid, structured_data, msg FROM logs ")
 
-	// Start the count query
-	countQueryBuilder.WriteString("SELECT COUNT(*) FROM logs ")
-
-	// Build WHERE clause for filtering
 	whereClause := buildWhereClause(filters, cursor, direction, &args)
 	if whereClause != "" {
 		filterQueryBuilder.WriteString("WHERE ")
 		filterQueryBuilder.WriteString(whereClause)
 	}
 
-	// Apply the filter clause to both queries
 	queryBuilder.WriteString(filterQueryBuilder.String())
-	countQueryBuilder.WriteString(filterQueryBuilder.String())
 
-	// Add sorting
 	if sortField != "" && sortOrder != "" {
 		queryBuilder.WriteString(fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder))
 	} else {
 		queryBuilder.WriteString(" ORDER BY timestamp DESC")
 	}
 
-	// Add limit
 	queryBuilder.WriteString(fmt.Sprintf(" LIMIT %d", limit))
 
-	// Execute combined count query to get both filtered and total counts in one query
-	var filterCount, totalCount int
-	combinedCountQuery := fmt.Sprintf("SELECT (%s) as filtered_count, (SELECT COUNT(*) FROM logs) as total_count", countQueryBuilder.String())
-	err := readDbInstance.QueryRow(combinedCountQuery, args...).Scan(&filterCount, &totalCount)
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf("error counting logs: %v", err)
-	}
-
-	// Execute the main query
 	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("error querying logs: %v", err)
+		return nil, fmt.Errorf("error querying logs: %v", err)
 	}
 	defer rows.Close()
 
@@ -354,19 +335,19 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 			&entry.Message,
 		)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("error scanning log row: %v", err)
+			return nil, fmt.Errorf("error scanning log row: %v", err)
 		}
 
 		// Parse timestamp
 		entry.Timestamp, err = time.Parse(time.RFC3339Nano, timestampStr)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("error parsing timestamp: %v", err)
+			return nil, fmt.Errorf("error parsing timestamp: %v", err)
 		}
 
 		logs = append(logs, entry)
 	}
 
-	return logs, totalCount, filterCount, nil
+	return logs, nil
 }
 
 // GetFacets retrieves facet metadata for filtering

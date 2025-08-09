@@ -39,8 +39,6 @@ export function Client() {
 
   // REMINDER: meta data is always the same for all pages as filters do not change(!)
   const lastPage = data?.pages?.[data?.pages.length - 1];
-  const totalDBRowCount = lastPage?.meta?.totalRowCount;
-  const filterDBRowCount = lastPage?.meta?.filterRowCount;
   const metadata = lastPage?.meta?.metadata;
   const chartData = lastPage?.meta?.chartData;
   const facets = lastPage?.meta?.facets;
@@ -69,8 +67,6 @@ export function Client() {
     <DataTableInfinite
       columns={columns}
       data={flatData}
-      totalRows={totalDBRowCount}
-      filterRows={filterDBRowCount}
       totalRowsFetched={totalFetched}
       defaultColumnFilters={Object.entries(filter)
         .map(([key, value]) => ({

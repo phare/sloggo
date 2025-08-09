@@ -22,11 +22,9 @@ type LogsResponse struct {
 
 // InfiniteQueryMeta contains metadata for infinite scrolling
 type InfiniteQueryMeta struct {
-	TotalRowCount  int                         `json:"totalRowCount"`
-	FilterRowCount int                         `json:"filterRowCount"`
-	ChartData      []db.ChartDataPoint         `json:"chartData"`
-	Facets         map[string]db.FacetMetadata `json:"facets"`
-	Metadata       map[string]any              `json:"metadata,omitempty"`
+	ChartData []db.ChartDataPoint         `json:"chartData"`
+	Facets    map[string]db.FacetMetadata `json:"facets"`
+	Metadata  map[string]any              `json:"metadata,omitempty"`
 }
 
 // LogsHandler handles the API endpoint for logs
@@ -176,7 +174,6 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Parallelize database calls for better performance
 	var wg sync.WaitGroup
 	var logs []models.LogEntry
-	var totalCount, filterCount int
 	var facets map[string]db.FacetMetadata
 	var chartData []db.ChartDataPoint
 	var logsErr, facetsErr, chartErr error
@@ -186,7 +183,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get logs from database
 	go func() {
 		defer wg.Done()
-		logs, totalCount, filterCount, logsErr = db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
+		logs, logsErr = db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
 	}()
 
 	// Get facets for filtering
@@ -258,11 +255,9 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	response := LogsResponse{
 		Data: logs,
 		Meta: InfiniteQueryMeta{
-			TotalRowCount:  totalCount,
-			FilterRowCount: filterCount,
-			ChartData:      chartData,
-			Facets:         facets,
-			Metadata:       map[string]any{},
+			ChartData: chartData,
+			Facets:    facets,
+			Metadata:  map[string]any{},
 		},
 		NextCursor: nextCursor,
 		PrevCursor: prevCursor,
