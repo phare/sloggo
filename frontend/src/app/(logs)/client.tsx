@@ -102,7 +102,6 @@ export function Client() {
       }}
       getRowId={(row) => String(row.id)}
       getFacetedUniqueValues={getFacetedUniqueValues(facets)}
-      getFacetedMinMaxValues={getFacetedMinMaxValues(facets)}
       renderLiveRow={(props) => {
         if (!liveMode.timestamp) return null;
         if (!liveMode?.row || props?.row.original.id !== liveMode?.row.id)
@@ -165,18 +164,5 @@ export function getFacetedUniqueValues<TData>(
     return new Map(
       facets?.[columnId]?.rows?.map(({ value, total }) => [value, total]) || [],
     );
-  };
-}
-
-export function getFacetedMinMaxValues<TData>(
-  facets?: Record<string, FacetMetadataSchema>,
-) {
-  return (_: TTable<TData>, columnId: string): [number, number] | undefined => {
-    const min = facets?.[columnId]?.min;
-    const max = facets?.[columnId]?.max;
-    if (typeof min === "number" && typeof max === "number") return [min, max];
-    if (typeof min === "number") return [min, min];
-    if (typeof max === "number") return [max, max];
-    return undefined;
   };
 }

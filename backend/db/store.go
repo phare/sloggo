@@ -45,10 +45,7 @@ type ChartDataPoint struct {
 
 // FacetMetadata represents metadata for faceted search
 type FacetMetadata struct {
-	Rows  []FacetRow `json:"rows"`
-	Total int        `json:"total"`
-	Min   *int       `json:"min,omitempty"`
-	Max   *int       `json:"max,omitempty"`
+	Rows []FacetRow `json:"rows"`
 }
 
 // FacetRow represents a single row in facet metadata
@@ -385,28 +382,13 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		}
 	}
 
-	// Calculate total count for facets based on non-temporal filters only
-	var totalCount int
-	countQuery := "SELECT COUNT(*) FROM logs"
-	countArgs := []any{}
-	whereClause := buildWhereClause(facetFilters, time.Time{}, "", &countArgs)
-	if whereClause != "" {
-		countQuery += " WHERE " + whereClause
-	}
-
-	err := dbInstance.QueryRow(countQuery, countArgs...).Scan(&totalCount)
-	if err != nil {
-		return nil, fmt.Errorf("error counting total filtered rows for facets: %v", err)
-	}
-
 	// Get severity facets
 	severityRows, err := getFacetValues("severity", facetFilters, 8)
 	if err != nil {
 		return nil, err
 	}
 	facets["severity"] = FacetMetadata{
-		Rows:  severityRows,
-		Total: totalCount,
+		Rows: severityRows,
 	}
 
 	// Get facility facets
@@ -415,8 +397,7 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		return nil, err
 	}
 	facets["facility"] = FacetMetadata{
-		Rows:  facilityRows,
-		Total: totalCount,
+		Rows: facilityRows,
 	}
 
 	return facets, nil
