@@ -4,13 +4,18 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sloggo/models"
+	"os"
+	"path"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"sloggo/models"
+	"sloggo/utils"
 )
 
 var (
@@ -21,6 +26,14 @@ var (
 	batchStoreLogsParams  [][]any
 	maxBatchStoreLogsSize = 10000
 	cleanupTick           = 30 * time.Minute
+
+	// Cache structures
+	facetCacheMutex sync.RWMutex
+	facetCache      map[string]facetCacheEntry
+	chartCacheMutex sync.RWMutex
+	chartCache      map[string]chartCacheEntry
+	maxCacheEntries = 50
+	cacheTTL        = 5 * time.Minute
 )
 
 // ChartDataPoint represents a single point of log data for charts
@@ -47,6 +60,18 @@ type FacetRow struct {
 	Total int `json:"total"`
 }
 
+// facetCacheEntry represents a cached facet result with expiration
+type facetCacheEntry struct {
+	data      map[string]FacetMetadata
+	timestamp time.Time
+}
+
+// chartCacheEntry represents a cached chart result with expiration
+type chartCacheEntry struct {
+	data      []ChartDataPoint
+	timestamp time.Time
+}
+
 func init() {
 	// Set up database connection
 	setupDatabase()
@@ -56,11 +81,18 @@ func init() {
 
 	batchStoreLogsParams = make([][]any, 0, maxBatchStoreLogsSize)
 
+	// Initialize caches
+	facetCache = make(map[string]facetCacheEntry)
+	chartCache = make(map[string]chartCacheEntry)
+
 	// Start the batch processor
 	go processBatchPeriodically()
 
 	// Start the log cleanup process
 	go performLogCleanupPeriodically()
+
+	// Start the cache cleanup process
+	go performCacheCleanupPeriodically()
 }
 
 // setupDatabase initializes the database connections
@@ -68,16 +100,6 @@ func init() {
 func setupDatabase() {
 	var err error
 	var dbPath string
-
-	sqlDriver := "sqlite3"
-
-// Sets up the database connection
-func setupDatabase() {
-	// Get directory for database
-	dir := GetDBDirectory()
-	if dir == "" {
-		log.Fatal("Database directory not set")
-	}
 
 	if testing.Testing() {
 		dbPath = ":memory:"
@@ -90,10 +112,24 @@ func setupDatabase() {
 		dbPath = filepath.Join(path.Dir(e), ".sqlite/logs.db")
 	}
 
-	connectionString := dbPath + "?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000&_busy_timeout=5000"
+	base := "file:" + dbPath
+
+	writeDSN := base + "?_journal_mode=WAL" +
+		"&_synchronous=NORMAL" +
+		"&_busy_timeout=5000" +
+		"&_cache_size=-8192" + // ~8 MiB cache for the writer
+		"&_wal_autocheckpoint=4000" + // auto-checkpoint ~16 MiB WAL if page size is 4 KiB
+		"&_journal_size_limit=134217728" + // cap WAL journal to 128 MiB
+		"&_temp_store=MEMORY" // keep small temps in RAM
+
+	readDSN := base + "?mode=ro" + // ensure read-only
+		"&_query_only=1" + // prevent accidental writes
+		"&_busy_timeout=5000" +
+		"&_cache_size=-4096" + // ~4 MiB per read connection
+		"&_mmap_size=134217728" // 128 MiB memory map for faster reads (virtual memory; not pre-allocated)
 
 	// Write connection pool - single connection for write operations
-	writeDbInstance, err = sql.Open(sqlDriver, connectionString)
+	writeDbInstance, err = sql.Open("sqlite3", writeDSN)
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite write database: %v", err)
 	}
@@ -101,18 +137,18 @@ func setupDatabase() {
 	// Set write connection pool parameters - single connection
 	writeDbInstance.SetMaxOpenConns(1)
 	writeDbInstance.SetMaxIdleConns(1)
-	writeDbInstance.SetConnMaxLifetime(30 * time.Minute)
+	writeDbInstance.SetConnMaxLifetime(0)
 
 	// Read connection pool - multiple connections for read operations
-	readDbInstance, err = sql.Open(sqlDriver, connectionString)
+	readDbInstance, err = sql.Open("sqlite3", readDSN)
 	if err != nil {
 		log.Fatalf("Failed to connect to SQLite read database: %v", err)
 	}
 
 	// Set read connection pool parameters - multiple connections
-	readDbInstance.SetMaxOpenConns(10)
-	readDbInstance.SetMaxIdleConns(5)
-	readDbInstance.SetConnMaxLifetime(30 * time.Minute)
+	readDbInstance.SetMaxOpenConns(5)
+	readDbInstance.SetMaxIdleConns(2)
+	readDbInstance.SetConnMaxLifetime(0)
 }
 
 // setupDatabaseTable creates a table if it doesn't already exist
@@ -133,16 +169,11 @@ func setupDatabaseTable(table string) {
 
 	-- Add indexes for common filter combinations
 	CREATE INDEX IF NOT EXISTS idx_timestamp ON %s(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_hostname ON %s(hostname);
-	CREATE INDEX IF NOT EXISTS idx_app_name ON %s(app_name);
 	CREATE INDEX IF NOT EXISTS idx_facility ON %s(facility);
 	CREATE INDEX IF NOT EXISTS idx_severity ON %s(severity);
 	CREATE INDEX IF NOT EXISTS idx_severity_timestamp ON %s(severity, timestamp);
 	CREATE INDEX IF NOT EXISTS idx_facility_timestamp ON %s(facility, timestamp);
-	CREATE INDEX IF NOT EXISTS idx_severity_facility_timestamp ON %s(severity, facility, timestamp);
-	CREATE INDEX IF NOT EXISTS idx_hostname_timestamp ON %s(hostname, timestamp);
-	CREATE INDEX IF NOT EXISTS idx_app_name_timestamp ON %s(app_name, timestamp);
-	`, table, table, table, table, table, table, table, table, table, table, table)
+	`, table, table, table, table, table, table)
 
 	if _, err := writeDbInstance.Exec(query); err != nil {
 		log.Fatalf("Failed to create table %s: %v", table, err)
@@ -225,7 +256,6 @@ func processBatchStoreLogs() error {
 	}
 
 	batchStoreLogsParams = nil
-
 	return nil
 }
 
@@ -279,6 +309,138 @@ func performLogCleanupPeriodically() {
 			log.Printf("Error in periodic log cleanup: %v", err)
 		}
 	}
+}
+
+// performCacheCleanupPeriodically runs cache cleanup on a timer
+func performCacheCleanupPeriodically() {
+	ticker := time.NewTicker(cacheTTL / 2)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		cleanupExpiredCacheEntries()
+	}
+}
+
+// cleanupExpiredCacheEntries removes expired cache entries
+func cleanupExpiredCacheEntries() {
+	now := time.Now()
+
+	// Clean facet cache
+	facetCacheMutex.Lock()
+	for key, entry := range facetCache {
+		if now.Sub(entry.timestamp) > cacheTTL {
+			delete(facetCache, key)
+		}
+	}
+	facetCacheMutex.Unlock()
+
+	// Clean chart cache
+	chartCacheMutex.Lock()
+	for key, entry := range chartCache {
+		if now.Sub(entry.timestamp) > cacheTTL {
+			delete(chartCache, key)
+		}
+	}
+	chartCacheMutex.Unlock()
+}
+
+// generateCacheKey creates a deterministic string key for cache lookups based on filters
+func generateCacheKey(filters map[string]any) string {
+	if len(filters) == 0 {
+		return "empty"
+	}
+
+	// Create a deterministic string representation of filters
+	keys := make([]string, 0, len(filters))
+	for k := range filters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	for _, k := range keys {
+		v := filters[k]
+		b.WriteString(k)
+		b.WriteString(":")
+
+		switch val := v.(type) {
+		case string:
+			b.WriteString(val)
+		case int:
+			b.WriteString(strconv.Itoa(val))
+		case []int:
+			for _, i := range val {
+				b.WriteString(strconv.Itoa(i))
+				b.WriteString(",")
+			}
+		case time.Time:
+			b.WriteString(val.Format(time.RFC3339))
+		default:
+			b.WriteString(fmt.Sprintf("%v", val))
+		}
+		b.WriteString(";")
+	}
+
+	return b.String()
+}
+
+// limitCacheSize ensures cache doesn't exceed memory limits
+func limitCacheSize() {
+	// Limit facet cache size
+	facetCacheMutex.Lock()
+	if len(facetCache) > maxCacheEntries {
+		// Find oldest entries to remove
+		entries := make([]struct {
+			key       string
+			timestamp time.Time
+		}, 0, len(facetCache))
+
+		for k, v := range facetCache {
+			entries = append(entries, struct {
+				key       string
+				timestamp time.Time
+			}{k, v.timestamp})
+		}
+
+		// Sort by timestamp (oldest first)
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].timestamp.Before(entries[j].timestamp)
+		})
+
+		// Remove oldest entries to get back to half capacity
+		for i := 0; i < len(entries)-maxCacheEntries/2; i++ {
+			delete(facetCache, entries[i].key)
+		}
+	}
+	facetCacheMutex.Unlock()
+
+	// Limit chart cache size
+	chartCacheMutex.Lock()
+	if len(chartCache) > maxCacheEntries {
+		// Find oldest entries to remove
+		entries := make([]struct {
+			key       string
+			timestamp time.Time
+		}, 0, len(chartCache))
+
+		for k, v := range chartCache {
+			entries = append(entries, struct {
+				key       string
+				timestamp time.Time
+			}{k, v.timestamp})
+		}
+
+		// Sort by timestamp (oldest first)
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].timestamp.Before(entries[j].timestamp)
+		})
+
+		// Remove oldest entries to get back to half capacity
+		for i := 0; i < len(entries)-maxCacheEntries/2; i++ {
+			delete(chartCache, entries[i].key)
+		}
+	}
+	chartCacheMutex.Unlock()
 }
 
 // GetLogs retrieves logs from the database based on filters
@@ -348,8 +510,6 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 
 // GetFacets retrieves facet metadata for filtering
 func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
-	facets := make(map[string]FacetMetadata)
-
 	// For facets, exclude temporal filters (date range) to show total state
 	// This ensures live mode facets represent all logs, not just new ones
 	facetFilters := make(map[string]any)
@@ -358,6 +518,21 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 			facetFilters[k] = v
 		}
 	}
+
+	// Generate cache key based on filters
+	cacheKey := generateCacheKey(facetFilters)
+
+	// Check if we have a cached result
+	facetCacheMutex.RLock()
+	if entry, found := facetCache[cacheKey]; found {
+		if time.Since(entry.timestamp) < cacheTTL {
+			facetCacheMutex.RUnlock()
+			return entry.data, nil
+		}
+	}
+	facetCacheMutex.RUnlock()
+
+	facets := make(map[string]FacetMetadata)
 
 	// Get severity facets
 	severityRows, err := getFacetValues("severity", facetFilters, 8)
@@ -377,6 +552,17 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		Rows: facilityRows,
 	}
 
+	// Store in cache
+	facetCacheMutex.Lock()
+	facetCache[cacheKey] = facetCacheEntry{
+		data:      facets,
+		timestamp: time.Now(),
+	}
+	facetCacheMutex.Unlock()
+
+	// Ensure cache doesn't grow too large
+	go limitCacheSize()
+
 	return facets, nil
 }
 
@@ -389,8 +575,31 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 
 	// We always use the cursor set to the next hour as the end time for chart data
 	// and go back 24 hours to get the last 24 hours of data.
-	chartFilters["endDate"] = cursor.Truncate(time.Hour).Add(time.Hour)
-	chartFilters["startDate"] = cursor.Add(-24 * time.Hour)
+	endDate := cursor.Truncate(time.Hour).Add(time.Hour)
+	startDate := cursor.Add(-24 * time.Hour)
+	chartFilters["endDate"] = endDate
+	chartFilters["startDate"] = startDate
+
+	// Generate cache key that includes time range and filters
+	cacheKey := fmt.Sprintf("start:%s|end:%s|%s",
+		startDate.Format(time.RFC3339),
+		endDate.Format(time.RFC3339),
+		generateCacheKey(chartFilters))
+
+	// Check if we have a cached result
+	chartCacheMutex.RLock()
+	if entry, found := chartCache[cacheKey]; found {
+		if time.Since(entry.timestamp) < cacheTTL {
+			chartCacheMutex.RUnlock()
+
+			if utils.Debug {
+				log.Printf("CACHE HIT: GetChartData with %d filters", len(chartFilters))
+			}
+
+			return entry.data, nil
+		}
+	}
+	chartCacheMutex.RUnlock()
 
 	// Build query for chart data
 	queryBuilder := strings.Builder{}
@@ -448,6 +657,17 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 
 		chartData = append(chartData, point)
 	}
+
+	// Store in cache
+	chartCacheMutex.Lock()
+	chartCache[cacheKey] = chartCacheEntry{
+		data:      chartData,
+		timestamp: time.Now(),
+	}
+	chartCacheMutex.Unlock()
+
+	// Ensure cache doesn't grow too large
+	go limitCacheSize()
 
 	return chartData, nil
 }
