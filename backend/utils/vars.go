@@ -18,7 +18,9 @@ var ApiPort string
 
 var LogRetentionMinutes int64
 
-var Version string
+var Debug bool
+
+var Version string // Set via -X flag during build
 
 func init() {
 	Listeners = strings.Split(GetSanitizedEnvString("SLOGGO_LISTENERS", "tcp,udp"), ",")
@@ -26,6 +28,7 @@ func init() {
 	TcpPort = GetSanitizedEnvString("SLOGGO_TCP_PORT", "6514")
 	ApiPort = GetSanitizedEnvString("SLOGGO_API_PORT", "8080")
 	LogRetentionMinutes = GetSanitizedEnvInt64("SLOGGO_LOG_RETENTION_MINUTES", 30*24*60) // Default to 30 days
+	Debug = GetSanitizedEnvString("SLOGGO_DEBUG", "false") == "true"
 }
 
 func GetSanitizedEnvString(key string, defaultValue string) string {
