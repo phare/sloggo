@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,12 +27,6 @@ var (
 	batchStoreLogsParams  [][]any
 	maxBatchStoreLogsSize = 10000
 	cleanupTick           = 30 * time.Minute
-
-	// Cache structures
-	facetCacheMutex sync.RWMutex
-	facetCache      map[string]facetCacheEntry
-	maxCacheEntries = 25
-	cacheTTL        = 3 * time.Minute
 )
 
 // ChartDataPoint represents a single point of log data for charts
@@ -75,17 +68,11 @@ func init() {
 
 	batchStoreLogsParams = make([][]any, 0, maxBatchStoreLogsSize)
 
-	// Initialize caches
-	facetCache = make(map[string]facetCacheEntry)
-
 	// Start the batch processor
 	go processBatchPeriodically()
 
 	// Start the log cleanup process
 	go performLogCleanupPeriodically()
-
-	// Start the cache cleanup process
-	go performCacheCleanupPeriodically()
 }
 
 // setupDatabase initializes the database connections
@@ -148,8 +135,8 @@ func setupDatabase() {
 func setupDatabaseTable(table string) {
 	query := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s (
-	    facility INTEGER NOT NULL,
 	    severity INTEGER NOT NULL,
+	    facility INTEGER NOT NULL,
 	    version INTEGER NOT NULL DEFAULT 1,
 	    timestamp TEXT NOT NULL,
 	    hostname TEXT NOT NULL,
@@ -161,15 +148,14 @@ func setupDatabaseTable(table string) {
 	);
 
 	-- Add indexes for common filter combinations
-	CREATE INDEX IF NOT EXISTS idx_timestamp ON %s(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_facility ON %s(facility);
-	CREATE INDEX IF NOT EXISTS idx_severity ON %s(severity);
-	CREATE INDEX IF NOT EXISTS idx_severity_timestamp ON %s(severity, timestamp);
-	CREATE INDEX IF NOT EXISTS idx_facility_timestamp ON %s(facility, timestamp);
+	CREATE INDEX IF NOT EXISTS idx_timestamp ON %s(timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_logs_dynamic ON %s(severity, facility, hostname, procid, app_name, msgid);
+	CREATE INDEX IF NOT EXISTS idx_severity_timestamp ON %s(severity, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_facility_timestamp ON %s(facility, timestamp DESC);
 
 	-- Run ANALYZE to collect statistics for query planning
 	ANALYZE;
-	`, table, table, table, table, table, table)
+	`, table, table, table, table, table)
 
 	if _, err := writeDbInstance.Exec(query); err != nil {
 		log.Fatalf("Failed to create table %s: %v", table, err)
@@ -307,101 +293,6 @@ func performLogCleanupPeriodically() {
 	}
 }
 
-// performCacheCleanupPeriodically runs cache cleanup on a timer
-func performCacheCleanupPeriodically() {
-	ticker := time.NewTicker(cacheTTL / 2)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		cleanupExpiredCacheEntries()
-	}
-}
-
-// cleanupExpiredCacheEntries removes expired cache entries
-func cleanupExpiredCacheEntries() {
-	now := time.Now()
-
-	// Clean facet cache
-	facetCacheMutex.Lock()
-	for key, entry := range facetCache {
-		if now.Sub(entry.timestamp) > cacheTTL {
-			delete(facetCache, key)
-		}
-	}
-	facetCacheMutex.Unlock()
-}
-
-// generateCacheKey creates a deterministic string key for cache lookups based on filters
-func generateCacheKey(filters map[string]any) string {
-	if len(filters) == 0 {
-		return "empty"
-	}
-
-	// Create a deterministic string representation of filters
-	keys := make([]string, 0, len(filters))
-	for k := range filters {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var b strings.Builder
-	for _, k := range keys {
-		v := filters[k]
-		b.WriteString(k)
-		b.WriteString(":")
-
-		switch val := v.(type) {
-		case string:
-			b.WriteString(val)
-		case int:
-			b.WriteString(strconv.Itoa(val))
-		case []int:
-			for _, i := range val {
-				b.WriteString(strconv.Itoa(i))
-				b.WriteString(",")
-			}
-		case time.Time:
-			b.WriteString(val.Format(time.RFC3339))
-		default:
-			b.WriteString(fmt.Sprintf("%v", val))
-		}
-		b.WriteString(";")
-	}
-
-	return b.String()
-}
-
-// limitCacheSize ensures cache doesn't exceed memory limits
-func limitCacheSize() {
-	// Limit facet cache size
-	facetCacheMutex.Lock()
-	if len(facetCache) > maxCacheEntries {
-		// Find oldest entries to remove
-		entries := make([]struct {
-			key       string
-			timestamp time.Time
-		}, 0, len(facetCache))
-
-		for k, v := range facetCache {
-			entries = append(entries, struct {
-				key       string
-				timestamp time.Time
-			}{k, v.timestamp})
-		}
-
-		// Sort by timestamp (oldest first)
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].timestamp.Before(entries[j].timestamp)
-		})
-
-		// Remove oldest entries to get back to half capacity
-		for i := 0; i < len(entries)-maxCacheEntries/2; i++ {
-			delete(facetCache, entries[i].key)
-		}
-	}
-	facetCacheMutex.Unlock()
-}
-
 // GetLogs retrieves logs from the database based on filters
 func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, error) {
 	// Build query
@@ -478,49 +369,127 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		}
 	}
 
-	// Generate cache key based on filters
-	cacheKey := generateCacheKey(facetFilters)
-
-	// Check if we have a cached result
-	facetCacheMutex.RLock()
-	if entry, found := facetCache[cacheKey]; found {
-		if time.Since(entry.timestamp) < cacheTTL {
-			facetCacheMutex.RUnlock()
-			return entry.data, nil
-		}
-	}
-	facetCacheMutex.RUnlock()
-
 	facets := make(map[string]FacetMetadata)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var globalErr error
 
-	// Get severity facets
-	severityRows, err := getFacetValues("severity", facetFilters, 8)
-	if err != nil {
-		return nil, err
-	}
-	facets["severity"] = FacetMetadata{
-		Rows: severityRows,
-	}
+	// Fast direct queries in parallel
+	wg.Add(2)
 
-	// Get facility facets
-	facilityRows, err := getFacetValues("facility", facetFilters, 24)
-	if err != nil {
-		return nil, err
-	}
-	facets["facility"] = FacetMetadata{
-		Rows: facilityRows,
-	}
+	// Get severity facets concurrently with highly optimized query
+	go func() {
+		defer wg.Done()
 
-	// Store in cache
-	facetCacheMutex.Lock()
-	facetCache[cacheKey] = facetCacheEntry{
-		data:      facets,
-		timestamp: time.Now(),
-	}
-	facetCacheMutex.Unlock()
+		// Force SQLite to use the severity index by putting it first in the select list
+		query := "SELECT severity as value, COUNT(*) as total FROM logs"
+		args := []any{}
 
-	// Ensure cache doesn't grow too large
-	go limitCacheSize()
+		whereClause := buildWhereClause(facetFilters, time.Time{}, "", &args)
+		if whereClause != "" {
+			query += " WHERE " + whereClause
+		}
+
+		query += " GROUP BY severity"
+
+		rows, err := readDbInstance.Query(query, args...)
+		if err != nil {
+			mu.Lock()
+			globalErr = fmt.Errorf("error querying severity facets: %v", err)
+			mu.Unlock()
+			return
+		}
+		defer rows.Close()
+
+		facetRows := []FacetRow{}
+		for rows.Next() {
+			var row FacetRow
+			var valueStr string
+			err := rows.Scan(&valueStr, &row.Total)
+			if err != nil {
+				mu.Lock()
+				globalErr = fmt.Errorf("error scanning severity facet row: %v", err)
+				mu.Unlock()
+				return
+			}
+
+			// Try to convert to integer if possible
+			if intVal, err := strconv.Atoi(valueStr); err == nil {
+				row.Value = intVal
+			} else {
+				row.Value = valueStr
+			}
+
+			facetRows = append(facetRows, row)
+		}
+
+		mu.Lock()
+		facets["severity"] = FacetMetadata{
+			Rows: facetRows,
+		}
+		mu.Unlock()
+	}()
+
+	// Get facility facets concurrently
+	go func() {
+		defer wg.Done()
+
+		// Force SQLite to use the facility index by putting it first in the select list
+		query := "SELECT facility as value, COUNT(*) as total FROM logs"
+		args := []any{}
+
+		whereClause := buildWhereClause(facetFilters, time.Time{}, "", &args)
+		if whereClause != "" {
+			query += " WHERE " + whereClause
+		}
+
+		query += " GROUP BY facility"
+
+		rows, err := readDbInstance.Query(query, args...)
+		if err != nil {
+			mu.Lock()
+			globalErr = fmt.Errorf("error querying facility facets: %v", err)
+			mu.Unlock()
+			return
+		}
+		defer rows.Close()
+
+		facetRows := []FacetRow{}
+		for rows.Next() {
+			var row FacetRow
+			var valueStr string
+			err := rows.Scan(&valueStr, &row.Total)
+			if err != nil {
+				mu.Lock()
+				globalErr = fmt.Errorf("error scanning facility facet row: %v", err)
+				mu.Unlock()
+				return
+			}
+
+			// Try to convert to integer if possible
+			if intVal, err := strconv.Atoi(valueStr); err == nil {
+				row.Value = intVal
+			} else {
+				row.Value = valueStr
+			}
+
+			facetRows = append(facetRows, row)
+		}
+
+		mu.Lock()
+		facets["facility"] = FacetMetadata{
+			Rows: facetRows,
+		}
+		mu.Unlock()
+	}()
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Check if any errors occurred
+	if globalErr != nil {
+		return nil, globalErr
+	}
 
 	return facets, nil
 }
@@ -597,52 +566,6 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	}
 
 	return chartData, nil
-}
-
-// Helper function to get facet values
-func getFacetValues(field string, filters map[string]any, limit int) ([]FacetRow, error) {
-	queryBuilder := strings.Builder{}
-	args := []any{}
-
-	queryBuilder.WriteString(fmt.Sprintf("SELECT %s as value, COUNT(*) as total FROM logs", field))
-
-	// Add WHERE clause for filtering, including all filters
-	whereClause := buildWhereClause(filters, time.Time{}, "", &args)
-	if whereClause != "" {
-		queryBuilder.WriteString(" WHERE ")
-		queryBuilder.WriteString(whereClause)
-	}
-
-	queryBuilder.WriteString(fmt.Sprintf(" GROUP BY %s ORDER BY total DESC LIMIT %d", field, limit))
-
-	// Execute query
-	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
-	if err != nil {
-		return nil, fmt.Errorf("error querying facet values for %s: %v", field, err)
-	}
-	defer rows.Close()
-
-	// Parse results
-	facetRows := []FacetRow{}
-	for rows.Next() {
-		var row FacetRow
-		var valueStr string
-		err := rows.Scan(&valueStr, &row.Total)
-		if err != nil {
-			return nil, fmt.Errorf("error scanning facet row: %v", err)
-		}
-
-		// Try to convert to integer if possible
-		if intVal, err := strconv.Atoi(valueStr); err == nil {
-			row.Value = intVal
-		} else {
-			row.Value = valueStr
-		}
-
-		facetRows = append(facetRows, row)
-	}
-
-	return facetRows, nil
 }
 
 // Helper function to build WHERE clause from filters
