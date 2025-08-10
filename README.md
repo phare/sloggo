@@ -30,6 +30,8 @@ It runs in a single process with minimal resource usage, quick configuration via
 > [!WARNING]
 > Sloggo is currently in alpha release, do not use it for anything serious, it also doesn’t offer any security layer by default, only use it in a private network, or behind a secure reverse proxy.
 
+Sloggo is made by [Phare](https://phare.io), a small bootstrapped company building shockingly good uptime monitoring, alerts, incidents, analytics, and status pages, with free [Open source grants](https://phare.io/for-good/open-source).
+
 ## Getting Started
 
 1. Start the container with docker or podman:
@@ -51,8 +53,7 @@ echo "<34>1 2025-08-04T12:00:00Z myhost sloggo - - - Hello, Sloggo" | nc localho
 
 3. Access the application:
    - Frontend: [http://localhost:8080/](http://localhost:8080/)
-
-A health check endpoint is available at [http://localhost:8080/api/health](http://localhost:8080/api/health).
+   - Health check endpoint: [http://localhost:8080/api/health](http://localhost:8080/api/health)
 
 ### Testing
 
