@@ -78,7 +78,6 @@ The following environment variables can be used to configure the application:
 - RFC 5424 log ingestion over TCP and UDP
 - Real-time search, filtering, and tailing
 - Lightweight and resource-efficient single process with zero config
-- Can ingests up to 2 million rows/sec in short bursts
 - Clean UI built with [data-table-filters](https://github.com/openstatusHQ/data-table-filters)
 
 ## What Sloggo is not
