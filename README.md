@@ -12,6 +12,8 @@
     Minimal RFC 5424 syslog collector and viewer. SQLite-backed. Runs as a single, resource-friendly process.
 </div>
 
+<p align="center"><img src="/sloggo-screenshot.webp" width="800" alt="Sloggo screenshot"></p>
+
 <br />
 <br />
 
