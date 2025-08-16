@@ -323,13 +323,15 @@ async function main() {
     totalLogsToGenerate.sort((a, b) => a - b);
 
     const totalLogs = totalLogsToGenerate.length;
-    console.log(`Generating ${totalLogs} logs across ${CONFIG.DAYS} days`);
+    console.log(`Preparing ${totalLogs} logs across ${CONFIG.DAYS} days`);
 
     const batch = [];
     for (const timestamp of totalLogsToGenerate) {
       batch.push(generateLogEntry(timestamp));
       logsSent++;
     }
+
+    console.log(`Prepared ${logsSent} log entries for sending`);
 
     successful = await sendBatch(client, batch);
 
