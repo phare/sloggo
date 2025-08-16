@@ -12,6 +12,8 @@ export type SyslogMeta = {
 };
 
 export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
+  totalRowCount: number;
+  filterRowCount: number;
   chartData: BaseChartSchema[];
   facets: Record<string, FacetMetadataSchema>;
   metadata?: TMeta;

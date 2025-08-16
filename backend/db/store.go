@@ -250,13 +250,15 @@ func performLogCleanupPeriodically() {
 }
 
 // GetLogs retrieves logs from the database based on filters
-func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, error) {
+func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, int, int, error) {
 	// Build query
 	queryBuilder := strings.Builder{}
+	countQueryBuilder := strings.Builder{}
 	filterQueryBuilder := strings.Builder{}
 	args := []any{}
 
 	queryBuilder.WriteString("SELECT rowid, facility, severity, timestamp, hostname, app_name, procid, msgid, structured_data, msg FROM logs ")
+	countQueryBuilder.WriteString("SELECT COUNT(*) FROM logs ")
 
 	whereClause := buildWhereClause(filters, cursor, direction, &args)
 	if whereClause != "" {
@@ -265,6 +267,7 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 	}
 
 	queryBuilder.WriteString(filterQueryBuilder.String())
+	countQueryBuilder.WriteString(filterQueryBuilder.String())
 
 	if sortField != "" && sortOrder != "" {
 		queryBuilder.WriteString(fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder))
@@ -274,11 +277,19 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 
 	queryBuilder.WriteString(fmt.Sprintf(" LIMIT %d", limit))
 
-	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
+	rows, err := db.Query(queryBuilder.String(), args...)
 	if err != nil {
-		return nil, fmt.Errorf("error querying logs: %v", err)
+		return nil, 0, 0, fmt.Errorf("error querying logs: %v", err)
 	}
 	defer rows.Close()
+
+	// Execute combined count query to get filtered and total counts
+	var filterCount, totalCount int
+	combinedCountQuery := fmt.Sprintf("SELECT (%s) as filtered_count, (SELECT COUNT(*) FROM logs) as total_count", countQueryBuilder.String())
+	err = db.QueryRow(combinedCountQuery, args...).Scan(&filterCount, &totalCount)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("error counting logs: %v", err)
+	}
 
 	// Parse results
 	logs := []models.LogEntry{}
@@ -299,19 +310,19 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 			&entry.Message,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("error scanning log row: %v", err)
+			return nil, 0, 0, fmt.Errorf("error scanning log row: %v", err)
 		}
 
 		// Parse timestamp
 		entry.Timestamp, err = time.Parse(time.RFC3339Nano, timestampStr)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing timestamp: %v", err)
+			return nil, 0, 0, fmt.Errorf("error parsing timestamp: %v", err)
 		}
 
 		logs = append(logs, entry)
 	}
 
-	return logs, nil
+	return logs, totalCount, filterCount, nil
 }
 
 // GetFacets retrieves facet metadata for filtering

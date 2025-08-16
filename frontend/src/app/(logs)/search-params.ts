@@ -49,7 +49,6 @@ export const searchParamsParser = {
   // REQUIRED FOR INFINITE SCROLLING (Live Mode and Load More)
   direction: parseAsStringLiteral(["prev", "next"]).withDefault("next"),
   live: parseAsBoolean.withDefault(false),
-  // Use SQLite rowid for selection
   id: parseAsInteger,
 };
 
