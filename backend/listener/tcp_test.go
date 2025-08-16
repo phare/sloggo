@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/marcboeker/go-duckdb/v2"
 )
 
 func sendTCPMessage(t *testing.T, conn net.Conn, message string) {

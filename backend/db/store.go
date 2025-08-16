@@ -1,7 +1,9 @@
 package db
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"log"
 	"os"
@@ -16,15 +18,13 @@ import (
 	"sloggo/models"
 	"sloggo/utils"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/marcboeker/go-duckdb/v2"
 )
 
 var (
-	dbDirectory           string
-	writeDbInstance       *sql.DB
-	readDbInstance        *sql.DB
-	batchStoreLogsMutex   sync.Mutex
-	batchStoreLogsParams  [][]any
+	db                    *sql.DB
+	batchLogsMutex        sync.Mutex
+	batchLogs             []models.LogEntry
 	maxBatchStoreLogsSize = 10000
 	cleanupTick           = 30 * time.Minute
 )
@@ -53,12 +53,6 @@ type FacetRow struct {
 	Total int `json:"total"`
 }
 
-// facetCacheEntry represents a cached facet result with expiration
-type facetCacheEntry struct {
-	data      map[string]FacetMetadata
-	timestamp time.Time
-}
-
 func init() {
 	// Set up database connection
 	setupDatabase()
@@ -66,7 +60,7 @@ func init() {
 	// Initialize schema
 	setupDatabaseTable("logs")
 
-	batchStoreLogsParams = make([][]any, 0, maxBatchStoreLogsSize)
+	batchLogs = make([]models.LogEntry, 0, maxBatchStoreLogsSize)
 
 	// Start the batch processor
 	go processBatchPeriodically()
@@ -85,48 +79,16 @@ func setupDatabase() {
 		log.Fatal(err)
 	}
 
-	base := "file:" + filepath.Join(path.Dir(e), ".sqlite/logs.db")
-
-	writeDSN := base + "?_journal_mode=WAL" +
-		"&_synchronous=NORMAL" +
-		"&_busy_timeout=5000" +
-		"&_cache_size=-8192" + // ~8 MiB cache for the writer
-		"&_wal_autocheckpoint=4000" + // auto-checkpoint ~16 MiB WAL if page size is 4 KiB
-		"&_journal_size_limit=134217728" + // cap WAL journal to 128 MiB
-		"&_temp_store=MEMORY" // keep small temps in RAM
-
-	readDSN := base + "?mode=ro" + // ensure read-only
-		"&_query_only=1" + // prevent accidental writes
-		"&_busy_timeout=5000" +
-		"&_cache_size=-4096" + // ~4 MiB per read connection
-		"&_mmap_size=134217728" // 128 MiB memory map for faster reads (virtual memory; not pre-allocated)
+	dsn := filepath.Join(path.Dir(e), ".duckdb/logs.db")
 
 	if testing.Testing() {
-		writeDSN = "file::memory:?cache=shared"
-		readDSN = "file::memory:?cache=shared"
+		dsn = ""
 	}
 
-	// Write connection pool - single connection for write operations
-	writeDbInstance, err = sql.Open("sqlite3", writeDSN)
+	db, err = sql.Open("duckdb", dsn)
 	if err != nil {
-		log.Fatalf("Failed to connect to SQLite write database: %v", err)
+		log.Fatalf("Failed to open database: %v", err)
 	}
-
-	// Set write connection pool parameters - single connection
-	writeDbInstance.SetMaxOpenConns(1)
-	writeDbInstance.SetMaxIdleConns(1)
-	writeDbInstance.SetConnMaxLifetime(0)
-
-	// Read connection pool - multiple connections for read operations
-	readDbInstance, err = sql.Open("sqlite3", readDSN)
-	if err != nil {
-		log.Fatalf("Failed to connect to SQLite read database: %v", err)
-	}
-
-	// Set read connection pool parameters - multiple connections
-	readDbInstance.SetMaxOpenConns(5)
-	readDbInstance.SetMaxIdleConns(2)
-	readDbInstance.SetConnMaxLifetime(0)
 }
 
 // setupDatabaseTable creates a table if it doesn't already exist
@@ -136,7 +98,7 @@ func setupDatabaseTable(table string) {
 	    severity INTEGER NOT NULL,
 	    facility INTEGER NOT NULL,
 	    version INTEGER NOT NULL DEFAULT 1,
-	    timestamp TEXT NOT NULL,
+	    timestamp TIMESTAMP NOT NULL,
 	    hostname TEXT NOT NULL,
 	    app_name TEXT NOT NULL,
 	    procid TEXT,
@@ -144,98 +106,98 @@ func setupDatabaseTable(table string) {
 	    structured_data TEXT,
 	    msg TEXT
 	);
+	`, table)
 
-	-- Add indexes for common filter combinations
-	CREATE INDEX IF NOT EXISTS idx_timestamp ON %s(timestamp DESC);
-	CREATE INDEX IF NOT EXISTS idx_logs_dynamic ON %s(severity, facility, hostname, procid, app_name, msgid);
-	CREATE INDEX IF NOT EXISTS idx_severity_timestamp ON %s(severity, timestamp DESC);
-	CREATE INDEX IF NOT EXISTS idx_facility_timestamp ON %s(facility, timestamp DESC);
-
-	-- Run ANALYZE to collect statistics for query planning
-	ANALYZE;
-	`, table, table, table, table, table)
-
-	if _, err := writeDbInstance.Exec(query); err != nil {
+	if _, err := db.Exec(query); err != nil {
 		log.Fatalf("Failed to create table %s: %v", table, err)
 	}
 }
 
-// GetDBInstance returns the initialized SQLite database instance.
+// GetDBInstance returns the initialized DuckDB database instance.
 func GetDBInstance() *sql.DB {
-	return writeDbInstance
+	return db
 }
 
-// StoreLog adds a log message to the batch for efficient processing
-func StoreLog(params []any) error {
-	batchStoreLogsMutex.Lock()
-	defer batchStoreLogsMutex.Unlock()
-
-	batchStoreLogsParams = append(batchStoreLogsParams, params)
+// StoreLog adds a log entry to the batch for efficient processing
+func StoreLog(entry models.LogEntry) error {
+	batchLogsMutex.Lock()
+	batchLogs = append(batchLogs, entry)
 
 	// If we've reached the max batch size, process immediately
-	if len(batchStoreLogsParams) >= maxBatchStoreLogsSize {
-		return processBatchStoreLogs()
+	if len(batchLogs) >= maxBatchStoreLogsSize {
+		batchLogsMutex.Unlock()
+		return ProcessBatchStoreLogs()
 	}
 
+	batchLogsMutex.Unlock()
 	return nil
 }
 
-// ForceProcessBatchStoreLogs forces immediate processing of the batch queue
-// This is primarily used for testing to ensure logs are written to the database
-func ForceProcessBatchStoreLogs() error {
-	batchStoreLogsMutex.Lock()
-	defer batchStoreLogsMutex.Unlock()
-	return processBatchStoreLogs()
-}
-
-// processBatchStoreLogs processes all pending log entries in a single transaction
-func processBatchStoreLogs() error {
-	var insertStatement *sql.Stmt
-
-	if len(batchStoreLogsParams) == 0 {
+// processBatchStoreLogsUnsafe processes all pending log entries without acquiring mutex
+// Must be called with batchStoreLogsMutex already held
+func ProcessBatchStoreLogs() error {
+	batchLogsMutex.Lock()
+	if len(batchLogs) == 0 {
+		batchLogsMutex.Unlock()
 		return nil
 	}
 
-	insertStatement, err := writeDbInstance.Prepare(`
-		INSERT INTO logs (
-			facility, severity, version, timestamp,
-			hostname, app_name, procid, msgid,
-			structured_data, msg
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`)
+	entries := batchLogs
+	batchLogs = batchLogs[:0]
 
+	batchLogsMutex.Unlock()
+
+	// Get the underlying DuckDB connection from sql.DB
+	dbConn, err := db.Conn(context.Background())
 	if err != nil {
-		log.Printf("Failed to prepare INSERT statement: %v", err)
 		return err
 	}
-	defer insertStatement.Close()
+	defer dbConn.Close()
 
-	transaction, err := writeDbInstance.Begin()
+	var rawConn driver.Conn
+	err = dbConn.Raw(func(driverConn any) error {
+		rawConn = driverConn.(driver.Conn)
+		return nil
+	})
 	if err != nil {
-		log.Printf("Failed to begin transaction: %v", err)
 		return err
 	}
 
-	transactionStatement := transaction.Stmt(insertStatement)
-	defer transactionStatement.Close()
+	appender, err := duckdb.NewAppenderFromConn(rawConn, "", "logs")
+	if err != nil {
+		log.Printf("Failed to create appender: %v", err)
+		return err
+	}
+	defer func() {
+		if closeErr := appender.Close(); closeErr != nil {
+			log.Printf("Error closing appender: %v", closeErr)
+		}
+	}()
 
-	// Execute each parameter set
-	for _, params := range batchStoreLogsParams {
-		_, err := transactionStatement.Exec(params...)
-		if err != nil {
-			transaction.Rollback()
-			log.Printf("Failed to execute batch statement: %v", err)
+	// Append each log entry directly from struct fields
+	for i, entry := range entries {
+		if err := appender.AppendRow(
+			entry.Severity,
+			entry.Facility,
+			entry.Version,
+			entry.Timestamp,
+			entry.Hostname,
+			entry.AppName,
+			entry.ProcID,
+			entry.MsgID,
+			entry.StructuredData,
+			entry.Message,
+		); err != nil {
+			log.Printf("Failed to append row %d: %v", i+1, err)
 			return err
 		}
 	}
 
-	if err := transaction.Commit(); err != nil {
-		log.Printf("Failed to commit transaction: %v", err)
+	// Flush the appender to ensure data is written
+	if err := appender.Flush(); err != nil {
+		log.Printf("Failed to flush appender: %v", err)
 		return err
 	}
-
-	batchStoreLogsParams = nil
 	return nil
 }
 
@@ -245,11 +207,7 @@ func processBatchPeriodically() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		batchStoreLogsMutex.Lock()
-		err := processBatchStoreLogs()
-		batchStoreLogsMutex.Unlock()
-
-		if err != nil {
+		if err := ProcessBatchStoreLogs(); err != nil {
 			log.Printf("Error in periodic batch processing: %v", err)
 		}
 	}
@@ -262,7 +220,7 @@ func cleanupOldLogs() error {
 
 	query := "DELETE FROM logs WHERE timestamp < ?"
 
-	result, err := writeDbInstance.Exec(query, cutoffTime)
+	result, err := db.Exec(query, cutoffTime)
 	if err != nil {
 		log.Printf("Failed to delete old logs: %v", err)
 		return err
@@ -379,7 +337,6 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	go func() {
 		defer wg.Done()
 
-		// Force SQLite to use the severity index by putting it first in the select list
 		query := "SELECT severity as value, COUNT(*) as total FROM logs"
 		args := []any{}
 
@@ -390,7 +347,7 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 
 		query += " GROUP BY severity"
 
-		rows, err := readDbInstance.Query(query, args...)
+		rows, err := db.Query(query, args...)
 		if err != nil {
 			mu.Lock()
 			globalErr = fmt.Errorf("error querying severity facets: %v", err)
@@ -432,7 +389,6 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	go func() {
 		defer wg.Done()
 
-		// Force SQLite to use the facility index by putting it first in the select list
 		query := "SELECT facility as value, COUNT(*) as total FROM logs"
 		args := []any{}
 
@@ -443,7 +399,7 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 
 		query += " GROUP BY facility"
 
-		rows, err := readDbInstance.Query(query, args...)
+		rows, err := db.Query(query, args...)
 		if err != nil {
 			mu.Lock()
 			globalErr = fmt.Errorf("error querying facility facets: %v", err)
@@ -499,20 +455,39 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 		chartFilters[k] = v
 	}
 
-	// We always use the cursor set to the next hour as the end time for chart data
-	// and go back 24 hours to get the last 24 hours of data.
-	endDate := cursor.Truncate(time.Hour).Add(time.Hour)
-	startDate := cursor.Add(-24 * time.Hour)
-	chartFilters["endDate"] = endDate
-	chartFilters["startDate"] = startDate
+	// If date filters are not provided, we use the cursor set to the next hour as the end
+	// time for chart data and go back 24 hours to get the last 24 hours of data.
+	if chartFilters["startDate"] == nil || chartFilters["endDate"] == nil {
+		endDate := cursor.Truncate(time.Hour).Add(time.Hour)
+		startDate := cursor.Add(-24 * time.Hour)
+		chartFilters["endDate"] = endDate
+		chartFilters["startDate"] = startDate
+	}
+
+	startDate := chartFilters["startDate"].(time.Time)
+	endDate := chartFilters["endDate"].(time.Time)
+	duration := endDate.Sub(startDate)
+
+	var truncateUnit string
+
+	switch {
+	case duration <= 3*24*time.Hour: // Up to 3 days: group by hour (max 72 points)
+		truncateUnit = "hour"
+	case duration <= 21*24*time.Hour: // Up to 3 weeks: group by day (max 21 points)
+		truncateUnit = "day"
+	case duration <= 180*24*time.Hour: // Up to ~6 months: group by week (max 26 points)
+		truncateUnit = "week"
+	default: // More than 6 months: group by month
+		truncateUnit = "month"
+	}
 
 	// Build query for chart data
 	queryBuilder := strings.Builder{}
 	args := []any{}
 
-	queryBuilder.WriteString(`
+	queryBuilder.WriteString(fmt.Sprintf(`
 		SELECT
-			strftime('%s', timestamp) * 1000 as ts,
+		    CAST(epoch(date_trunc('%s', timestamp)) * 1000 AS BIGINT) AS ts,
 			SUM(CASE WHEN severity = 7 THEN 1 ELSE 0 END) as debug,
 			SUM(CASE WHEN severity = 6 THEN 1 ELSE 0 END) as info,
 			SUM(CASE WHEN severity = 5 THEN 1 ELSE 0 END) as notice,
@@ -522,7 +497,7 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 			SUM(CASE WHEN severity = 1 THEN 1 ELSE 0 END) as alert,
 			SUM(CASE WHEN severity = 0 THEN 1 ELSE 0 END) as emergency
 		FROM logs
-	`)
+	`, truncateUnit))
 
 	// Add WHERE clause for filtering (excluding temporal constraints)
 	whereClause := buildWhereClause(chartFilters, time.Time{}, "", &args)
@@ -532,10 +507,10 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	}
 
 	// Group by hour
-	queryBuilder.WriteString(" GROUP BY strftime('%Y-%m-%d %H', timestamp) ORDER BY ts ASC")
+	queryBuilder.WriteString(fmt.Sprintf(" GROUP BY date_trunc('%s', timestamp) ORDER BY ts ASC", truncateUnit))
 
 	// Execute query
-	rows, err := readDbInstance.Query(queryBuilder.String(), args...)
+	rows, err := db.Query(queryBuilder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("error querying chart data: %v", err)
 	}

@@ -113,11 +113,15 @@ func processUDPMessage(message []byte) {
 			continue
 		}
 
-		// Convert directly to SQL parameters without intermediate format
-		params := formats.SyslogMessageToSQL(rfc5424Msg)
+		// Convert directly to LogEntry for efficient DuckDB insertion
+		logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
+
+		if logEntry == nil {
+			log.Printf("Failed to convert message to LogEntry: %s", message)
+		}
 
 		// Store log without blocking if possible
-		if err := db.StoreLog(params); err != nil {
+		if err := db.StoreLog(*logEntry); err != nil {
 			log.Printf("Error storing UDP log: %v", err)
 		}
 	}

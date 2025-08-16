@@ -10,7 +10,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 export const metadata: Metadata = {
   title: "Sloggo",
   description:
-    "Minimal RFC 5424 syslog collector and viewer. SQLite-backed. Runs as a single, resource-friendly process.",
+    "Minimal RFC 5424 syslog collector and viewer based on DuckDB. Runs as a single, resource-friendly process.",
 };
 
 export default function RootLayout({

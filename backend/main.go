@@ -6,8 +6,6 @@ import (
 	"sloggo/utils"
 
 	"sloggo/listener"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {

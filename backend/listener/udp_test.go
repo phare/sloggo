@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/marcboeker/go-duckdb/v2"
 )
 
 func sendUDPMessage(t *testing.T, addr string, message string) {

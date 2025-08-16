@@ -3,13 +3,13 @@
 <h1 align="center">Sloggo</h1>
 <p align="center">
 <a href="https://github.com/orgs/phare/packages/container/package/sloggo"><img src="https://img.shields.io/badge/image_size-%3C10%20MiB-blue?style=flat-square" alt="Container Image Size"></a>
-<a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build.yml?style=flat-square" alt="Build"></a>
 <a href="https://github.com/phare/sloggo/tags"><img src="https://img.shields.io/github/v/tag/phare/sloggo?style=flat-square" alt="Version"></a>
+<a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build.yml?style=flat-square" alt="Build"></a>
 <a href="https://github.com/phare/sloggo?tab=MIT-1-ov-file#readme"><img src="https://img.shields.io/github/license/phare/sloggo?style=flat-square" alt="License"></a>
 </p>
 
 <div align="center">
-    Minimal RFC 5424 syslog collector and viewer. SQLite-backed. Runs as a single, resource-friendly process.
+    Minimal RFC 5424 syslog collector and viewer based on DuckDB. Runs as a single, resource-friendly process.
 </div>
 
 <br />
@@ -21,7 +21,7 @@
 
 # Introduction
 
-Sloggo is a lightweight log collection and exploration tool. It ingests logs over TCP and UDP using the RFC 5424 Syslog protocol, stores them in SQLite, and presents them in a clean, modern web UI.
+Sloggo is a lightweight log collection and exploration tool. It ingests logs over TCP and UDP using the RFC 5424 Syslog protocol, stores them in DuckDB, and presents them in a clean, modern web UI.
 
 Designed for small to medium-sized setups where you want real-time logs without spinning up the JVM or a full Kubernetes cluster to ingest 10 daily lines of logs.
 
@@ -76,7 +76,8 @@ The following environment variables can be used to configure the application:
 ## What Sloggo is
 
 - RFC 5424 log ingestion over TCP and UDP
-- Real-time search, filtering, and tailing
+- Fast search, filtering, and tailing
+- Up to 1 million logs per second ingestion rate
 - Lightweight and resource-efficient single process with zero config
 - Clean UI built with [data-table-filters](https://github.com/openstatusHQ/data-table-filters)
 

@@ -2,8 +2,8 @@ package formats
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
+	"sloggo/models"
 	"time"
 
 	"github.com/leodido/go-syslog/v4/rfc5424"
@@ -25,8 +25,11 @@ func GetSeverityFromPriority(priority *uint8) uint8 {
 	return *priority % 8
 }
 
-// SyslogMessageToSQL converts a SyslogMessage to SQL parameters for the prepared INSERT statement
-func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) []any {
+// SyslogMessageToLogEntry converts a SyslogMessage to LogEntry struct for efficient DuckDB insertion
+func SyslogMessageToLogEntry(msg *rfc5424.SyslogMessage) *models.LogEntry {
+	if msg == nil {
+		return nil
+	}
 
 	// Calculate facility and severity from priority
 	var facility, severity uint8
@@ -35,13 +38,13 @@ func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) []any {
 		severity = GetSeverityFromPriority(msg.Priority)
 	}
 
-	// Convert timestamp to string if it exists
-	var timestampStr string
+	// Use timestamp from message or current time
+	var timestamp time.Time
 	if msg.Timestamp != nil {
-		timestampStr = msg.Timestamp.Format(time.RFC3339Nano)
+		timestamp = *msg.Timestamp
 	} else {
 		// Use current time if timestamp is missing
-		timestampStr = time.Now().Format(time.RFC3339Nano)
+		timestamp = time.Now()
 	}
 
 	// Use default values for nil pointers
@@ -77,21 +80,21 @@ func SyslogMessageToSQL(msg *rfc5424.SyslogMessage) []any {
 		msgContent = *msg.Message
 	}
 
-	// Create parameters for SQL query
-	params := []any{
-		facility,
-		severity,
-		msg.Version,
-		timestampStr,
-		hostname,
-		appName,
-		procId,
-		msgId,
-		structuredData,
-		msgContent,
+	// Create the entry
+	entry := &models.LogEntry{
+		Severity:       severity,
+		Facility:       facility,
+		Version:        msg.Version,
+		Timestamp:      timestamp,
+		Hostname:       hostname,
+		AppName:        appName,
+		ProcID:         procId,
+		MsgID:          msgId,
+		StructuredData: structuredData,
+		Message:        msgContent,
 	}
 
-	return params
+	return entry
 }
 
 // formatStructuredData converts the structured data map to a json string format
@@ -103,24 +106,4 @@ func formatStructuredData(structData map[string]map[string]string) string {
 	}
 
 	return string(jsonBytes)
-}
-
-// ParseRFC5424Message parses an RFC5424 syslog message string
-func ParseRFC5424Message(message string) (*rfc5424.SyslogMessage, error) {
-	// Create a new parser with best effort mode
-	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
-
-	// Parse the message
-	syslogMsg, err := parser.Parse([]byte(message))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse RFC5424 message: %v", err)
-	}
-
-	// Convert to RFC5424 message
-	rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
-	if !ok {
-		return nil, fmt.Errorf("parsed message is not a valid RFC5424 message")
-	}
-
-	return rfc5424Msg, nil
 }
