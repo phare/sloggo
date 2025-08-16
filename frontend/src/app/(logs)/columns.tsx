@@ -102,7 +102,7 @@ export const columns: ColumnDef<ColumnSchema>[] = [
         </div>
       );
     },
-    filterFn: "arrIncludesSome",
+    filterFn: "arrSome",
     enableResizing: false,
     size: 100,
     minSize: 100,
