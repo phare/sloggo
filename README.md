@@ -2,7 +2,6 @@
 
 <h1 align="center">Sloggo</h1>
 <p align="center">
-<a href="https://github.com/orgs/phare/packages/container/package/sloggo"><img src="https://img.shields.io/badge/image_size-%3C10%20MiB-blue?style=flat-square" alt="Container Image Size"></a>
 <a href="https://github.com/phare/sloggo/tags"><img src="https://img.shields.io/github/v/tag/phare/sloggo?style=flat-square" alt="Version"></a>
 <a href="https://github.com/phare/sloggo/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/phare/sloggo/build.yml?style=flat-square" alt="Build"></a>
 <a href="https://github.com/phare/sloggo?tab=MIT-1-ov-file#readme"><img src="https://img.shields.io/github/license/phare/sloggo?style=flat-square" alt="License"></a>
