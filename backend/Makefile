@@ -4,9 +4,6 @@ BIN_DIR=bin
 EXPORT_RESULT?=FALSE
 .DEFAULT_GOAL:=help
 
-c:
-	@echo $(EXPORT_RESULT)
-
 ##################################### Binary #####################################
 
 .PHONY: pre
