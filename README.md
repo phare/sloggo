@@ -37,10 +37,11 @@ Sloggo is made by [Phare](https://phare.io), a small bootstrapped company buildi
 
 ```bash
 docker run -p 5514:5514/udp -p 6514:6514 -p 8080:8080 \
-  -e SLOGGO_LISTENERS=tcp,udp \
-  -e SLOGGO_UDP_PORT=5514 \
-  -e SLOGGO_TCP_PORT=6514 \
-  -e SLOGGO_API_PORT=8080 \
+   -e SLOGGO_LISTENERS=tcp,udp \
+   -e SLOGGO_UDP_PORT=5514 \
+   -e SLOGGO_TCP_PORT=6514 \
+   -e SLOGGO_API_PORT=8080 \
+   -v ./data:/app/.duckdb \
    ghcr.io/phare/sloggo:latest
 ```
 
