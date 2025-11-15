@@ -125,16 +125,22 @@ func StoreLog(entry models.LogEntry) error {
 
 	// If we've reached the max batch size, process immediately
 	if len(batchLogs) >= maxBatchStoreLogsSize {
+		// Don't unlock here - let ProcessBatchStoreLogs handle it
+		// by calling it while holding the lock
+		entries := batchLogs
+		batchLogs = make([]models.LogEntry, 0, maxBatchStoreLogsSize)
 		batchLogsMutex.Unlock()
-		return ProcessBatchStoreLogs()
+
+		// Process the batch outside the lock
+		return processBatchStoreLogsWithEntries(entries)
 	}
 
 	batchLogsMutex.Unlock()
 	return nil
 }
 
-// processBatchStoreLogsUnsafe processes all pending log entries without acquiring mutex
-// Must be called with batchStoreLogsMutex already held
+// ProcessBatchStoreLogs processes all pending log entries
+// This is called by the periodic batch processor
 func ProcessBatchStoreLogs() error {
 	batchLogsMutex.Lock()
 	if len(batchLogs) == 0 {
@@ -143,9 +149,18 @@ func ProcessBatchStoreLogs() error {
 	}
 
 	entries := batchLogs
-	batchLogs = batchLogs[:0]
-
+	batchLogs = make([]models.LogEntry, 0, maxBatchStoreLogsSize)
 	batchLogsMutex.Unlock()
+
+	return processBatchStoreLogsWithEntries(entries)
+}
+
+// processBatchStoreLogsWithEntries processes a batch of log entries
+// This function does not touch the global batchLogs slice
+func processBatchStoreLogsWithEntries(entries []models.LogEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
 
 	// Get the underlying DuckDB connection from sql.DB
 	dbConn, err := db.Conn(context.Background())
