@@ -99,30 +99,26 @@ func processUDPMessage(message []byte) {
 			continue // Skip empty messages
 		}
 
-		// Parse the message
-		syslogMsg, err := parser.Parse([]byte(part))
-		if err != nil {
-			log.Printf("Failed to parse UDP message: %v: %s", err, input)
+		// Try RFC5424 first
+		if syslogMsg, err := parser.Parse([]byte(part)); err == nil {
+			if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
+				if logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg); logEntry != nil {
+					if err := db.StoreLog(*logEntry); err != nil {
+						log.Printf("Error storing UDP log: %v", err)
+					}
+					continue
+				}
+			}
+		}
+
+		// Fallback to RFC3164
+		if logEntry, err := formats.ParseRFC3164ToLogEntry(part); err == nil {
+			if err := db.StoreLog(*logEntry); err != nil {
+				log.Printf("Error storing UDP log: %v", err)
+			}
 			continue
-		}
-
-		// Convert to RFC5424 syslog message
-		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
-		if !ok {
-			log.Printf("Parsed UDP message is not a valid RFC5424 message: %s", input)
-			continue
-		}
-
-		// Convert directly to LogEntry for efficient DuckDB insertion
-		logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
-
-		if logEntry == nil {
-			log.Printf("Failed to convert message to LogEntry: %s", message)
-		}
-
-		// Store log without blocking if possible
-		if err := db.StoreLog(*logEntry); err != nil {
-			log.Printf("Error storing UDP log: %v", err)
+		} else {
+			log.Printf("Failed to parse UDP message as RFC5424 or RFC3164: %v: %s", err, input)
 		}
 	}
 }

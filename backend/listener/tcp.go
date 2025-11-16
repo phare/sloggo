@@ -103,30 +103,28 @@ func handleTCPConnection(conn net.Conn) {
 			continue
 		}
 
-		// Parse the message
+		// Try RFC5424 first
 		syslogMsg, err := parser.Parse([]byte(message))
-		if err != nil {
-			log.Printf("Failed to parse message: %v: %s", err, message)
+		if err == nil {
+			if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
+				logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
+				if logEntry != nil {
+					if err := db.StoreLog(*logEntry); err != nil {
+						log.Printf("Error storing log: %v", err)
+					}
+					continue
+				}
+			}
+		}
+
+		// Fallback: try RFC3164
+		if logEntry, err := formats.ParseRFC3164ToLogEntry(message); err == nil {
+			if err := db.StoreLog(*logEntry); err != nil {
+				log.Printf("Error storing log: %v", err)
+			}
 			continue
-		}
-
-		// Convert to RFC5424 syslog message
-		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
-		if !ok {
-			log.Printf("Parsed message is not a valid RFC5424 message: %s", message)
-			continue
-		}
-
-		// Convert directly to LogEntry for efficient DuckDB insertion
-		logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
-
-		if logEntry == nil {
-			log.Printf("Failed to convert message to LogEntry: %s", message)
-		}
-
-		// Store log without blocking if possible
-		if err := db.StoreLog(*logEntry); err != nil {
-			log.Printf("Error storing log: %v", err)
+		} else {
+			log.Printf("Failed to parse message as RFC5424 or RFC3164: %v: %s", err, message)
 		}
 	}
 }
