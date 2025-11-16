@@ -11,7 +11,7 @@ import (
 
 var (
     // Example: <34>Oct 11 22:14:15 mymachine su[123]: 'su root' failed
-    rfc3164Regex = regexp.MustCompile(`^<(?P<pri>\d{1,3})>(?P<ts>[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(?P<host>\S+)\s+(?P<tag>[A-Za-z0-9_.\-\/]+)(?:\[(?P<pid>[^\]]+)\])?:\s*(?P<msg>.*)$`)
+    rfc3164Regex = regexp.MustCompile(`^<(?P<pri>\d{1,3})>(?P<ts>[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(?P<host>\S+)\s+(?P<tag>[A-Za-z0-9_.\-\/]+)(?:\[(?P<pid>[^\]]+)\])?:\s*(?P<msg>[\s\S]*)$`)
 )
 
 // ParseRFC3164ToLogEntry parses an RFC3164 (BSD) syslog line into a LogEntry

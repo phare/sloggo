@@ -52,3 +52,24 @@ func TestParseRFC3164ToLogEntry_WithPID(t *testing.T) {
 		t.Errorf("message: got %q", entry.Message)
 	}
 }
+
+func TestParseRFC3164ToLogEntry_MultilineMessage(t *testing.T) {
+	line := "<134>Feb  1 11:37:00 modbus-ble-bridge mdns: [C][mdns:124]: mDNS:\n\n  Hostname: modbus-ble-bridge"
+	entry, err := ParseRFC3164ToLogEntry(line)
+	if err != nil {
+		t.Fatalf("unexpected error parsing multiline: %v", err)
+	}
+	if entry.Facility != 16 || entry.Severity != 6 { // 134 / 8 = 16, 134 % 8 = 6
+		t.Errorf("facility/severity mismatch: got (%d,%d)", entry.Facility, entry.Severity)
+	}
+	if entry.Hostname != "modbus-ble-bridge" {
+		t.Errorf("hostname: got %q", entry.Hostname)
+	}
+	if entry.AppName != "mdns" {
+		t.Errorf("appname: got %q", entry.AppName)
+	}
+	expectedMsg := "[C][mdns:124]: mDNS:\n\n  Hostname: modbus-ble-bridge"
+	if entry.Message != expectedMsg {
+		t.Errorf("message mismatch:\nexpected: %q\n     got: %q", expectedMsg, entry.Message)
+	}
+}
