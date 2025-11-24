@@ -1,1 +1,42 @@
-.idea
+```
+# Go build artifacts
+*.o
+*.a
+*.so
+*.exe
+*.dll
+*.out
+*.test
+
+# Go cache directories
+go/pkg/
+go/build/
+.gocache/
+
+# Dependencies
+vendor/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+```
