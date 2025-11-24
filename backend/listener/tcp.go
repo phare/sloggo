@@ -2,8 +2,10 @@ package listener
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"net"
+	"strconv"
 	"sloggo/db"
 	"sloggo/formats"
 	"sloggo/utils"
@@ -68,38 +70,30 @@ func StartTCPListener() {
 func handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 
-	scanner := bufio.NewScanner(conn)
+	// Set up TCP keep-alive to maintain connection
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(30 * time.Second)
+	}
+
+	// Create a buffered reader to handle both octet counting and newline-delimited formats
+	reader := bufio.NewReader(conn)
 	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
-	// Configure scanner with a larger buffer for bigger messages
-	const maxScanSize = 1024 * 1024 // 1MB max message size
-	buffer := make([]byte, 0, 64*1024)
-	scanner.Buffer(buffer, maxScanSize)
-
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-
 	for {
-		// Scan for the next message
-		if !scanner.Scan() {
-			// Check for errors
-			if err := scanner.Err(); err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					// Just a timeout, reset deadline and try again
-					conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-					continue
-				}
-				log.Printf("TCP connection closed: %v", err)
+		// Read message in either octet counting format (RFC 6587) or newline-delimited
+		message, err := readSyslogMessage(reader)
+		if err != nil {
+			if err.Error() == "EOF" {
+				log.Printf("TCP connection closed by client")
+			} else {
+				log.Printf("Error reading message: %v", err)
 			}
-			// EOF or error occurred
 			return
 		}
 
-		// Reset deadline after successful read
-		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-
-		message := strings.TrimSpace(scanner.Text())
+		message = strings.TrimSpace(message)
 		if message == "" {
-			// Skip empty messages
 			continue
 		}
 
@@ -129,4 +123,66 @@ func handleTCPConnection(conn net.Conn) {
 			log.Printf("Error storing log: %v", err)
 		}
 	}
+}
+
+// readSyslogMessage reads a syslog message in either octet counting or newline-delimited format
+func readSyslogMessage(reader *bufio.Reader) (string, error) {
+	// Peek at the first few bytes to determine the format
+	peekBytes, err := reader.Peek(10)
+	if err != nil {
+		return "", err
+	}
+
+	// Check if the message starts with a digit (octet counting format: "length message")
+	if len(peekBytes) > 0 && peekBytes[0] >= '0' && peekBytes[0] <= '9' {
+		// Parse the length prefix in octet counting format
+		return readOctetCountingMessage(reader)
+	} else {
+		// Use newline-delimited format
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		// Remove the newline character
+		return strings.TrimSuffix(line, "\n"), nil
+	}
+}
+
+// readOctetCountingMessage reads a message in octet counting format (RFC 6587)
+func readOctetCountingMessage(reader *bufio.Reader) (string, error) {
+	// Read the length prefix (digits followed by a space)
+	var lengthStr string
+	for {
+		char, err := reader.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		
+		if char == ' ' {
+			break // End of length prefix
+		}
+		
+		if char < '0' || char > '9' {
+			// Not a valid octet counting format, put back the character and return as-is
+			reader.UnreadByte()
+			return lengthStr, nil
+		}
+		
+		lengthStr += string(char)
+	}
+
+	// Convert length string to integer
+	msgLen, err := strconv.Atoi(lengthStr)
+	if err != nil {
+		return "", err
+	}
+
+	// Read exactly msgLen bytes
+	message := make([]byte, msgLen)
+	_, err = io.ReadFull(reader, message)
+	if err != nil {
+		return "", err
+	}
+
+	return string(message), nil
 }
