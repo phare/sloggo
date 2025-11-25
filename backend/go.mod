@@ -1,10 +1,10 @@
 module sloggo
 
-go 1.24
+go 1.19
 
 require (
 	github.com/leodido/go-syslog/v4 v4.2.0
-	github.com/marcboeker/go-duckdb/v2 v2.3.5
+	github.com/marcboeker/go-duckdb/v2 v2.2.0
 )
 
 require (

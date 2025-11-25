@@ -1,19 +1,27 @@
 package main
 
 import (
-	"slices"
 	"sloggo/server"
 	"sloggo/utils"
 
 	"sloggo/listener"
 )
 
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
-	if slices.Contains(utils.Listeners, "udp") {
+	if contains(utils.Listeners, "udp") {
 		go listener.StartUDPListener()
 	}
 
-	if slices.Contains(utils.Listeners, "tcp") {
+	if contains(utils.Listeners, "tcp") {
 		go listener.StartTCPListener()
 	}
 
