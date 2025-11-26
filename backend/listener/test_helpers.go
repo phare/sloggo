@@ -167,5 +167,35 @@ func getTestCases() []testCase {
 				shouldError:    false,
 			},
 		},
+		{
+			name:    "RFC3164 basic without pid",
+			message: "<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8",
+			expected: expectedResult{
+				facility:       4,
+				severity:       2,
+				hostname:       "mymachine",
+				appName:        "su",
+				procid:         "-",
+				msgid:          "-",
+				structuredData: "-",
+				msg:            "'su root' failed for lonvick on /dev/pts/8",
+				shouldError:    false,
+			},
+		},
+		{
+			name:    "RFC3164 with pid typical esphome",
+			message: "<190>Nov  6 09:01:02 esphome-device esphome[1234]: Sensor reading: 42",
+			expected: expectedResult{
+				facility:       23,
+				severity:       6,
+				hostname:       "esphome-device",
+				appName:        "esphome",
+				procid:         "1234",
+				msgid:          "-",
+				structuredData: "-",
+				msg:            "Sensor reading: 42",
+				shouldError:    false,
+			},
+		},
 	}
 }

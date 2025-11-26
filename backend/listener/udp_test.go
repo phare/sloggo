@@ -3,6 +3,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"sloggo/utils"
 	"strings"
 	"testing"
 	"time"
@@ -40,10 +41,15 @@ func TestUDPListener(t *testing.T) {
 
 	testCases := getTestCases()
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			sendUDPMessage(t, fmt.Sprintf("localhost:%d", port), tc.message)
-			verifyLogEntry(t, tc)
-		})
+	formats := []string{"auto", "rfc5424", "rfc3164"}
+	for _, format := range formats {
+		utils.LogFormat = format
+		for _, tc := range testCases {
+			name := fmt.Sprintf("%s_%s", format, tc.name)
+			t.Run(name, func(t *testing.T) {
+				sendUDPMessage(t, fmt.Sprintf("localhost:%d", port), tc.message)
+				verifyLogEntry(t, tc)
+			})
+		}
 	}
 }

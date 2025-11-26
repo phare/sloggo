@@ -73,6 +73,10 @@ The following environment variables can be used to configure the application:
 - `SLOGGO_TCP_PORT`: Port for the TCP Syslog listener (default: `6514`).
 - `SLOGGO_API_PORT`: Port for the API (default: `8080`).
 - `SLOGGO_LOG_RETENTION_MINUTES`: Duration in minutes to keep logs before deletion (default: `43200` - 30 days).
+- `SLOGGO_LOG_FORMAT`: Log parsing format (default: `auto`). Supported values:
+   - `auto`: Try RFC 5424 first, then fall back to RFC 3164.
+   - `RFC5424`: Only parse messages as RFC 5424.
+   - `RFC3164`: Only parse messages as RFC 3164.
 
 ## What Sloggo is
 
