@@ -69,7 +69,6 @@ func handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 
 	scanner := bufio.NewScanner(conn)
-	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
 	// Configure scanner with a larger buffer for bigger messages
 	const maxScanSize = 1024 * 1024 // 1MB max message size
@@ -103,28 +102,41 @@ func handleTCPConnection(conn net.Conn) {
 			continue
 		}
 
-		// Try RFC5424 first
-		syslogMsg, err := parser.Parse([]byte(message))
-		if err == nil {
-			if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
-				logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
-				if logEntry != nil {
-					if err := db.StoreLog(*logEntry); err != nil {
-						log.Printf("Error storing log: %v", err)
+		parsed := false
+		var lastErr error
+
+		// Try RFC5424 if enabled
+		if utils.LogFormat == "rfc5424" || utils.LogFormat == "auto" {
+			parser := rfc5424.NewParser(rfc5424.WithBestEffort())
+			if syslogMsg, err := parser.Parse([]byte(message)); err == nil {
+				if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
+					logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
+					if logEntry != nil {
+						if err := db.StoreLog(*logEntry); err != nil {
+							log.Printf("Error storing log: %v", err)
+						}
+						parsed = true
 					}
-					continue
 				}
+			} else {
+				lastErr = err
 			}
 		}
 
-		// Fallback: try RFC3164
-		if logEntry, err := formats.ParseRFC3164ToLogEntry(message); err == nil {
-			if err := db.StoreLog(*logEntry); err != nil {
-				log.Printf("Error storing log: %v", err)
+		// Try RFC3164 if enabled and not yet parsed
+		if !parsed && (utils.LogFormat == "rfc3164" || utils.LogFormat == "auto") {
+			if logEntry, err := formats.ParseRFC3164ToLogEntry(message); err == nil {
+				if err := db.StoreLog(*logEntry); err != nil {
+					log.Printf("Error storing log: %v", err)
+				}
+				parsed = true
+			} else {
+				lastErr = err
 			}
-			continue
-		} else {
-			log.Printf("Failed to parse message as RFC5424 or RFC3164: %v: %s", err, message)
+		}
+
+		if !parsed {
+			log.Printf("Failed to parse message with format %s: %v: %s", utils.LogFormat, lastErr, message)
 		}
 	}
 }

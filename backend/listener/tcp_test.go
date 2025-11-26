@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"sloggo/db"
+	"sloggo/utils"
 	"strings"
 	"testing"
 	"time"
@@ -59,12 +60,17 @@ func TestTCPListener(t *testing.T) {
 	}
 	defer conn.Close()
 
-	// Run test cases sequentially on the same connection
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			sendTCPMessage(t, conn, tc.message)
-			// No need to explicitly force batch processing - handled in verifyLogEntry
-			verifyLogEntry(t, tc)
-		})
+	// Run test cases sequentially on the same connection for different log formats
+	formats := []string{"auto", "rfc5424", "rfc3164"}
+	for _, format := range formats {
+		utils.LogFormat = format
+		for _, tc := range testCases {
+			name := fmt.Sprintf("%s_%s", format, tc.name)
+			t.Run(name, func(t *testing.T) {
+				sendTCPMessage(t, conn, tc.message)
+				// No need to explicitly force batch processing - handled in verifyLogEntry
+				verifyLogEntry(t, tc)
+			})
+		}
 	}
 }

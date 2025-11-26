@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leodido/go-syslog/v4"
 	"github.com/leodido/go-syslog/v4/rfc5424"
 )
 
@@ -83,9 +84,6 @@ func StartUDPListener() {
 
 // processUDPMessage handles processing of a single UDP message
 func processUDPMessage(message []byte) {
-	// Create a parser with best effort mode
-	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
-
 	// Process the input using go-syslog parser
 	input := string(message)
 
@@ -93,32 +91,51 @@ func processUDPMessage(message []byte) {
 	// Split by newlines in case multiple messages were sent in one datagram
 	parts := strings.SplitSeq(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
 
+	// Create a parser with best effort mode when RFC5424 is enabled
+	var parser syslog.Machine
+	if utils.LogFormat == "rfc5424" || utils.LogFormat == "auto" {
+		parser = rfc5424.NewParser(rfc5424.WithBestEffort())
+	}
+
 	for part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue // Skip empty messages
 		}
 
-		// Try RFC5424 first
-		if syslogMsg, err := parser.Parse([]byte(part)); err == nil {
-			if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
-				if logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg); logEntry != nil {
-					if err := db.StoreLog(*logEntry); err != nil {
-						log.Printf("Error storing UDP log: %v", err)
+		parsed := false
+		var lastErr error
+
+		// Try RFC5424 if enabled
+		if parser != nil && (utils.LogFormat == "rfc5424" || utils.LogFormat == "auto") {
+			if syslogMsg, err := parser.Parse([]byte(part)); err == nil {
+				if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
+					if logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg); logEntry != nil {
+						if err := db.StoreLog(*logEntry); err != nil {
+							log.Printf("Error storing UDP log: %v", err)
+						}
+						parsed = true
 					}
-					continue
 				}
+			} else {
+				lastErr = err
 			}
 		}
 
-		// Fallback to RFC3164
-		if logEntry, err := formats.ParseRFC3164ToLogEntry(part); err == nil {
-			if err := db.StoreLog(*logEntry); err != nil {
-				log.Printf("Error storing UDP log: %v", err)
+		// Try RFC3164 if enabled and not yet parsed
+		if !parsed && (utils.LogFormat == "rfc3164" || utils.LogFormat == "auto") {
+			if logEntry, err := formats.ParseRFC3164ToLogEntry(part); err == nil {
+				if err := db.StoreLog(*logEntry); err != nil {
+					log.Printf("Error storing UDP log: %v", err)
+				}
+				parsed = true
+			} else {
+				lastErr = err
 			}
-			continue
-		} else {
-			log.Printf("Failed to parse UDP message as RFC5424 or RFC3164: %v: %s", err, input)
+		}
+
+		if !parsed {
+			log.Printf("Failed to parse UDP message with format %s: %v: %s", utils.LogFormat, lastErr, input)
 		}
 	}
 }
