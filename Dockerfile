@@ -1,5 +1,5 @@
 # Stage 1: Build the Go binary
-FROM golang:1.24-bookworm AS go-builder
+FROM golang:1.25-trixie AS go-builder
 
 ARG VERSION=dev
 WORKDIR /app
@@ -17,7 +17,7 @@ RUN CGO_ENABLED=1 \
     -o sloggo main.go
 
 # Stage 2: Build the React frontend
-FROM node:20-bookworm-slim AS frontend-builder
+FROM node:22-trixie-slim AS frontend-builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
@@ -31,7 +31,7 @@ RUN pnpm exec next telemetry disable
 RUN pnpm build
 
 # Stage 3: Final runtime image
-FROM gcr.io/distroless/cc-debian12 AS runtime
+FROM gcr.io/distroless/cc-debian13 AS runtime
 
 WORKDIR /app
 
