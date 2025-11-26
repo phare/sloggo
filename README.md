@@ -35,20 +35,22 @@ Sloggo is made by [Phare](https://phare.io), a small bootstrapped company buildi
 
 1. Start the container with docker or podman:
 
-```bash
-docker run -p 5514:5514/udp -p 6514:6514 -p 8080:8080 \
-  -e SLOGGO_LISTENERS=tcp,udp \
-  -e SLOGGO_UDP_PORT=5514 \
-  -e SLOGGO_TCP_PORT=6514 \
-  -e SLOGGO_API_PORT=8080 \
-   ghcr.io/phare/sloggo:latest
-```
+   ```bash
+   docker run --name sloggo \
+      -p 5514:5514/udp -p 6514:6514 -p 8080:8080 \
+      -e SLOGGO_LISTENERS=tcp,udp \
+      -e SLOGGO_UDP_PORT=5514 \
+      -e SLOGGO_TCP_PORT=6514 \
+      -e SLOGGO_API_PORT=8080 \
+      -v ./data:/app/.duckdb \
+      ghcr.io/phare/sloggo:latest
+   ```
 
 2. Send some logs
 
-```bash
-echo "<34>1 2025-08-04T12:00:00Z myhost sloggo - - - Hello, Sloggo" | nc localhost 6514
-```
+   ```bash
+   echo "<34>1 2025-08-04T12:00:00Z myhost sloggo - - - Hello, Sloggo" | nc localhost 6514
+   ```
 
 3. Access the application:
    - Frontend: [http://localhost:8080/](http://localhost:8080/)
