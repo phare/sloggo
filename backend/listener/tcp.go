@@ -11,8 +11,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leodido/go-syslog/v4"
 	"github.com/leodido/go-syslog/v4/rfc5424"
 )
+
+var (
+	rfc5424Parser syslog.Machine
+	parserOnce    sync.Once
+)
+
+func getRFC5424Parser() syslog.Machine {
+	parserOnce.Do(func() {
+		rfc5424Parser = rfc5424.NewParser(rfc5424.WithBestEffort())
+	})
+	return rfc5424Parser
+}
 
 func StartTCPListener() {
 	port := utils.TcpPort
@@ -69,7 +82,6 @@ func handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 
 	scanner := bufio.NewScanner(conn)
-	parser := rfc5424.NewParser(rfc5424.WithBestEffort())
 
 	// Configure scanner with a larger buffer for bigger messages
 	const maxScanSize = 1024 * 1024 // 1MB max message size
@@ -103,30 +115,43 @@ func handleTCPConnection(conn net.Conn) {
 			continue
 		}
 
-		// Parse the message
-		syslogMsg, err := parser.Parse([]byte(message))
-		if err != nil {
-			log.Printf("Failed to parse message: %v: %s", err, message)
-			continue
+		parsed := false
+		var lastErr error
+
+		logFormat := utils.GetLogFormat()
+
+		// Try RFC5424 if enabled
+		if logFormat == "rfc5424" || logFormat == "auto" {
+			parser := getRFC5424Parser()
+			if syslogMsg, err := parser.Parse([]byte(message)); err == nil {
+				if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
+					logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
+					if logEntry != nil {
+						if err := db.StoreLog(*logEntry); err != nil {
+							log.Printf("Error storing log: %v", err)
+						}
+						parsed = true
+					}
+				}
+			} else {
+				lastErr = err
+			}
 		}
 
-		// Convert to RFC5424 syslog message
-		rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage)
-		if !ok {
-			log.Printf("Parsed message is not a valid RFC5424 message: %s", message)
-			continue
+		// Try RFC3164 if enabled and not yet parsed
+		if !parsed && (logFormat == "rfc3164" || logFormat == "auto") {
+			if logEntry, err := formats.ParseRFC3164ToLogEntry(message); err == nil {
+				if err := db.StoreLog(*logEntry); err != nil {
+					log.Printf("Error storing log: %v", err)
+				}
+				parsed = true
+			} else {
+				lastErr = err
+			}
 		}
 
-		// Convert directly to LogEntry for efficient DuckDB insertion
-		logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
-
-		if logEntry == nil {
-			log.Printf("Failed to convert message to LogEntry: %s", message)
-		}
-
-		// Store log without blocking if possible
-		if err := db.StoreLog(*logEntry); err != nil {
-			log.Printf("Error storing log: %v", err)
+		if !parsed {
+			log.Printf("Failed to parse message with format %s: %v: %s", logFormat, lastErr, message)
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"sloggo/db"
+	"sloggo/utils"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,12 @@ func sendTCPMessage(t *testing.T, conn net.Conn, message string) {
 }
 
 func TestTCPListener(t *testing.T) {
+	// Save original LogFormat and restore at the end
+	originalLogFormat := utils.GetLogFormat()
+	defer func() {
+		utils.SetLogFormat(originalLogFormat)
+	}()
+
 	// Clean the database before starting tests
 	db := db.GetDBInstance()
 	_, err := db.Exec("DELETE FROM logs")
@@ -59,12 +66,18 @@ func TestTCPListener(t *testing.T) {
 	}
 	defer conn.Close()
 
-	// Run test cases sequentially on the same connection
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+	// Run test cases sequentially on the same connection for different log formats
+	formats := []string{"auto", "rfc5424", "rfc3164"}
+	for _, format := range formats {
+		// Set format for this test group using thread-safe function
+		utils.SetLogFormat(format)
+
+		for _, tc := range testCases {
+			testName := fmt.Sprintf("%s_%s", format, tc.name)
+			t.Logf("Running test: %s", testName)
 			sendTCPMessage(t, conn, tc.message)
 			// No need to explicitly force batch processing - handled in verifyLogEntry
 			verifyLogEntry(t, tc)
-		})
+		}
 	}
 }
