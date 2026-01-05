@@ -11,8 +11,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leodido/go-syslog/v4"
 	"github.com/leodido/go-syslog/v4/rfc5424"
 )
+
+var (
+	rfc5424Parser syslog.Machine
+	parserOnce    sync.Once
+)
+
+func getRFC5424Parser() syslog.Machine {
+	parserOnce.Do(func() {
+		rfc5424Parser = rfc5424.NewParser(rfc5424.WithBestEffort())
+	})
+	return rfc5424Parser
+}
 
 func StartTCPListener() {
 	port := utils.TcpPort
@@ -105,9 +118,11 @@ func handleTCPConnection(conn net.Conn) {
 		parsed := false
 		var lastErr error
 
+		logFormat := utils.GetLogFormat()
+
 		// Try RFC5424 if enabled
-		if utils.LogFormat == "rfc5424" || utils.LogFormat == "auto" {
-			parser := rfc5424.NewParser(rfc5424.WithBestEffort())
+		if logFormat == "rfc5424" || logFormat == "auto" {
+			parser := getRFC5424Parser()
 			if syslogMsg, err := parser.Parse([]byte(message)); err == nil {
 				if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
 					logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg)
@@ -124,7 +139,7 @@ func handleTCPConnection(conn net.Conn) {
 		}
 
 		// Try RFC3164 if enabled and not yet parsed
-		if !parsed && (utils.LogFormat == "rfc3164" || utils.LogFormat == "auto") {
+		if !parsed && (logFormat == "rfc3164" || logFormat == "auto") {
 			if logEntry, err := formats.ParseRFC3164ToLogEntry(message); err == nil {
 				if err := db.StoreLog(*logEntry); err != nil {
 					log.Printf("Error storing log: %v", err)
@@ -136,7 +151,7 @@ func handleTCPConnection(conn net.Conn) {
 		}
 
 		if !parsed {
-			log.Printf("Failed to parse message with format %s: %v: %s", utils.LogFormat, lastErr, message)
+			log.Printf("Failed to parse message with format %s: %v: %s", logFormat, lastErr, message)
 		}
 	}
 }

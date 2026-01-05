@@ -14,6 +14,18 @@ import (
 	"github.com/leodido/go-syslog/v4/rfc5424"
 )
 
+var (
+	udpRFC5424Parser syslog.Machine
+	udpParserOnce    sync.Once
+)
+
+func getUDPRFC5424Parser() syslog.Machine {
+	udpParserOnce.Do(func() {
+		udpRFC5424Parser = rfc5424.NewParser(rfc5424.WithBestEffort())
+	})
+	return udpRFC5424Parser
+}
+
 func StartUDPListener() {
 	port := utils.UdpPort
 
@@ -91,12 +103,6 @@ func processUDPMessage(message []byte) {
 	// Split by newlines in case multiple messages were sent in one datagram
 	parts := strings.SplitSeq(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
 
-	// Create a parser with best effort mode when RFC5424 is enabled
-	var parser syslog.Machine
-	if utils.LogFormat == "rfc5424" || utils.LogFormat == "auto" {
-		parser = rfc5424.NewParser(rfc5424.WithBestEffort())
-	}
-
 	for part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -106,8 +112,12 @@ func processUDPMessage(message []byte) {
 		parsed := false
 		var lastErr error
 
+		// Get current log format in a thread-safe manner
+		logFormat := utils.GetLogFormat()
+
 		// Try RFC5424 if enabled
-		if parser != nil && (utils.LogFormat == "rfc5424" || utils.LogFormat == "auto") {
+		if logFormat == "rfc5424" || logFormat == "auto" {
+			parser := getUDPRFC5424Parser()
 			if syslogMsg, err := parser.Parse([]byte(part)); err == nil {
 				if rfc5424Msg, ok := syslogMsg.(*rfc5424.SyslogMessage); ok {
 					if logEntry := formats.SyslogMessageToLogEntry(rfc5424Msg); logEntry != nil {
@@ -123,7 +133,7 @@ func processUDPMessage(message []byte) {
 		}
 
 		// Try RFC3164 if enabled and not yet parsed
-		if !parsed && (utils.LogFormat == "rfc3164" || utils.LogFormat == "auto") {
+		if !parsed && (logFormat == "rfc3164" || logFormat == "auto") {
 			if logEntry, err := formats.ParseRFC3164ToLogEntry(part); err == nil {
 				if err := db.StoreLog(*logEntry); err != nil {
 					log.Printf("Error storing UDP log: %v", err)
@@ -135,7 +145,7 @@ func processUDPMessage(message []byte) {
 		}
 
 		if !parsed {
-			log.Printf("Failed to parse UDP message with format %s: %v: %s", utils.LogFormat, lastErr, input)
+			log.Printf("Failed to parse UDP message with format %s: %v: %s", logFormat, lastErr, input)
 		}
 	}
 }

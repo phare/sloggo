@@ -30,8 +30,6 @@ func TestStoreLogEntry(t *testing.T) {
 		t.Fatalf("Failed to process batch: %v", err)
 	}
 
-	//	time.Sleep(100 * time.Millisecond)
-
 	db := GetDBInstance()
 	rows, err := db.Query(`
 		SELECT severity, facility, version, hostname, app_name, procid, msgid, structured_data, msg
@@ -137,9 +135,6 @@ func TestBatchProcessing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to process batch: %v", err)
 	}
-
-	// Wait for processing to complete
-	//	time.Sleep(100 * time.Millisecond)
 
 	// Verify all entries are in the database
 	db := GetDBInstance()
