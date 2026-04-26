@@ -44,12 +44,11 @@ export function LiveButton({ fetchPreviousPage }: LiveButtonProps) {
   }, [live, fetchPreviousPage]);
 
   // REMINDER: make sure to reset live when date is set
-  // TODO: test properly
   React.useEffect(() => {
     if ((timestamp || sort) && live) {
       setSearch((prev) => ({ ...prev, live: null }));
     }
-  }, [timestamp, sort]);
+  }, [timestamp, sort, live]);
 
   function handleClick() {
     setSearch((prev) => ({

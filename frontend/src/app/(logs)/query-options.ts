@@ -77,10 +77,17 @@ export const dataOptions = (search: SearchParamsType) => {
       return json as InfiniteQueryResponse<ColumnSchema[], SyslogMeta>;
     },
     initialPageParam: { cursor: Date.now(), direction: "next" },
-    getPreviousPageParam: (firstPage, _pages) => {
-      // For previous page, use the previous cursor or null if it doesn't exist
-      if (!firstPage.prevCursor) return null;
-      return { cursor: firstPage.prevCursor, direction: "prev" };
+    getPreviousPageParam: (firstPage, pages) => {
+      if (firstPage.prevCursor) {
+        return { cursor: firstPage.prevCursor, direction: "prev" };
+      }
+      // No new logs since last poll: reuse the most recent cursor from existing
+      // pages so live mode keeps polling instead of stopping permanently
+      const lastCursor = pages.find((page) => page.prevCursor)?.prevCursor;
+      if (lastCursor) {
+        return { cursor: lastCursor, direction: "prev" };
+      }
+      return null;
     },
     getNextPageParam: (lastPage, _pages) => {
       // For next page, use the next cursor or null if it doesn't exist
