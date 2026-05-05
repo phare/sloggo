@@ -79,6 +79,10 @@ func StartTCPListener() {
 
 // handleTCPConnection handles a TCP connection
 func handleTCPConnection(conn net.Conn) {
+	handleTCPConnectionWithTimeout(conn, 30*time.Second)
+}
+
+func handleTCPConnectionWithTimeout(conn net.Conn, readTimeout time.Duration) {
 	defer conn.Close()
 
 	scanner := bufio.NewScanner(conn)
@@ -88,7 +92,7 @@ func handleTCPConnection(conn net.Conn) {
 	buffer := make([]byte, 0, 64*1024)
 	scanner.Buffer(buffer, maxScanSize)
 
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(readTimeout))
 
 	for {
 		// Scan for the next message
@@ -96,9 +100,7 @@ func handleTCPConnection(conn net.Conn) {
 			// Check for errors
 			if err := scanner.Err(); err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					// Just a timeout, reset deadline and try again
-					conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-					continue
+					return
 				}
 				log.Printf("TCP connection closed: %v", err)
 			}
@@ -107,7 +109,7 @@ func handleTCPConnection(conn net.Conn) {
 		}
 
 		// Reset deadline after successful read
-		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(readTimeout))
 
 		message := strings.TrimSpace(scanner.Text())
 		if message == "" {
