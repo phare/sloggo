@@ -29,10 +29,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 COPY frontend/pnpm-lock.yaml frontend/package.json ./
-RUN pnpm fetch
+RUN pnpm fetch --no-optional
 
 COPY frontend/ .
-RUN pnpm install --offline
+RUN pnpm install --offline --no-optional
 RUN pnpm exec next telemetry disable
 RUN pnpm build
 
