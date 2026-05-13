@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"sloggo/server/handlers"
 	"sloggo/utils"
@@ -21,6 +22,15 @@ func (s *Server) setupRoutes() {
 
 	// API endpoint for logs
 	mux.HandleFunc("/api/logs", handlers.LogsHandler)
+
+	if utils.Pprof {
+		log.Printf("pprof endpoints are enabled at /debug/pprof/")
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 
 	// Serve static files from the frontend build
 	staticDir := "/app/public"

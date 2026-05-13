@@ -81,3 +81,20 @@ func TestTCPListener(t *testing.T) {
 		}
 	}
 }
+
+func TestTCPConnectionReadTimeoutClosesConnection(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		handleTCPConnectionWithTimeout(serverConn, 10*time.Millisecond)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("TCP connection handler did not return after read timeout")
+	}
+}

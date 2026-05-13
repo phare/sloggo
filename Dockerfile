@@ -2,6 +2,7 @@
 FROM golang:1.25-trixie AS go-builder
 
 ARG VERSION=dev
+ARG DEBUG_SYMBOLS=false
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y build-essential
@@ -11,10 +12,15 @@ COPY backend/ .
 RUN mkdir -p /app/.duckdb
 
 RUN go mod download
-RUN CGO_ENABLED=1 \
-    go build \
-    -ldflags "-s -w -X sloggo/utils.Version=${VERSION}" \
-    -o sloggo main.go
+RUN if [ "$DEBUG_SYMBOLS" = "true" ]; then \
+        CGO_ENABLED=1 go build \
+            -ldflags "-X sloggo/utils.Version=${VERSION}" \
+            -o sloggo main.go; \
+    else \
+        CGO_ENABLED=1 go build \
+            -ldflags "-s -w -X sloggo/utils.Version=${VERSION}" \
+            -o sloggo main.go; \
+    fi
 
 # Stage 2: Build the React frontend
 FROM node:22-trixie-slim AS frontend-builder
