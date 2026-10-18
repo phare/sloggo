@@ -11,7 +11,13 @@ import (
 
 var (
     // Example: <34>Oct 11 22:14:15 mymachine su[123]: 'su root' failed
-    rfc3164Regex = regexp.MustCompile(`^<(?P<pri>\d{1,3})>(?P<ts>[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(?P<host>\S+)\s+(?P<tag>[A-Za-z0-9_.\-\/]+)(?:\[(?P<pid>[^\]]+)\])?:\s*(?P<msg>[\s\S]*)$`)
+    // The timestamp is optional: senders such as ESPHome omit it (or send a
+    // bare "-" placeholder) when their clock is not yet valid.
+    // Examples:
+    //   <34>Oct 11 22:14:15 mymachine su[123]: 'su root' failed
+    //   <135>- modbus-ble-bridge modbus_ble_bridge: [D][app:286]: message
+    //   <135> modbus-ble-bridge modbus_ble_bridge: [D][app:286]: message
+    rfc3164Regex = regexp.MustCompile(`^<(?P<pri>\d{1,3})>(?:(?P<ts>[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+|-)?\s*(?P<host>\S+)\s+(?P<tag>[A-Za-z0-9_.\-\/]+)(?:\[(?P<pid>[^\]]+)\])?:\s*(?P<msg>[\s\S]*)$`)
 )
 
 // ParseRFC3164ToLogEntry parses an RFC3164 (BSD) syslog line into a LogEntry
@@ -48,24 +54,31 @@ func ParseRFC3164ToLogEntry(line string) (*models.LogEntry, error) {
     severity := uint8(pri % 8)
 
     // Timestamp (no year) e.g. "Oct 11 22:14:15"
-    // RFC3164 doesn't include year, so we need to infer it
+    // RFC3164 doesn't include year, so we need to infer it.
+    // When the timestamp is absent (e.g. ESPHome before its clock is valid,
+    // which emits a bare "-" or omits the field entirely), fall back to the
+    // time of reception.
     now := time.Now()
     tsStr := groups["ts"]
-    // time layout with optional leading space in day
-    // Jan _2 15:04:05 handles single-digit days
-    tsParsed, err := time.ParseInLocation("Jan _2 15:04:05", tsStr, now.Location())
-    if err != nil {
-        return nil, errors.New("failed to parse timestamp: " + err.Error())
-    }
 
-    // Infer year: start with current year
-    year := now.Year()
-    ts := time.Date(year, tsParsed.Month(), tsParsed.Day(), tsParsed.Hour(), tsParsed.Minute(), tsParsed.Second(), 0, now.Location())
+    ts := now
+    if tsStr != "" {
+        // time layout with optional leading space in day
+        // Jan _2 15:04:05 handles single-digit days
+        tsParsed, err := time.ParseInLocation("Jan _2 15:04:05", tsStr, now.Location())
+        if err != nil {
+            return nil, errors.New("failed to parse timestamp: " + err.Error())
+        }
 
-    // Handle year boundary: if it's January and we receive December logs, they're from last year
-    if now.Month() == time.January && tsParsed.Month() == time.December {
-        year--
+        // Infer year: start with current year
+        year := now.Year()
         ts = time.Date(year, tsParsed.Month(), tsParsed.Day(), tsParsed.Hour(), tsParsed.Minute(), tsParsed.Second(), 0, now.Location())
+
+        // Handle year boundary: if it's January and we receive December logs, they're from last year
+        if now.Month() == time.January && tsParsed.Month() == time.December {
+            year--
+            ts = time.Date(year, tsParsed.Month(), tsParsed.Day(), tsParsed.Hour(), tsParsed.Minute(), tsParsed.Second(), 0, now.Location())
+        }
     }
 
     hostname := groups["host"]
