@@ -162,6 +162,50 @@ func TestBatchProcessing(t *testing.T) {
 	}
 }
 
+// TestGetFacetsIncludesTextColumns verifies that text columns are exposed as
+// facets and that the facet query honours the active filters.
+func TestGetFacetsIncludesTextColumns(t *testing.T) {
+	const hostname = "facets-host"
+	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+
+	for i := 0; i < 3; i++ {
+		err := StoreLog(models.LogEntry{
+			Severity:       6,
+			Facility:       1,
+			Version:        1,
+			Timestamp:      timestamp,
+			Hostname:       hostname,
+			AppName:        fmt.Sprintf("facets-app-%d", i%2),
+			ProcID:         "facets-proc",
+			MsgID:          "facets-msg",
+			StructuredData: "-",
+			Message:        fmt.Sprintf("facets message %d", i),
+		})
+		if err != nil {
+			t.Fatalf("Failed to store log entry: %v", err)
+		}
+	}
+	if err := ProcessBatchStoreLogs(); err != nil {
+		t.Fatalf("Failed to process batch: %v", err)
+	}
+
+	facets, err := GetFacets(map[string]any{"hostname": []string{hostname}})
+	if err != nil {
+		t.Fatalf("GetFacets failed: %v", err)
+	}
+
+	for _, key := range []string{"hostname", "appName", "procId", "msgId"} {
+		if _, ok := facets[key]; !ok {
+			t.Errorf("missing facet %q", key)
+		}
+	}
+
+	hostnameRows := facets["hostname"].Rows
+	if len(hostnameRows) != 1 || hostnameRows[0].Value != hostname || hostnameRows[0].Total != 3 {
+		t.Errorf("unexpected hostname facet rows: %+v", hostnameRows)
+	}
+}
+
 // TestGetLogsPaginationWithDuplicateTimestamps verifies that keyset pagination
 // returns every row exactly once when all rows share the same timestamp. The
 // timestamp has sub-millisecond precision, as RFC 5424 timestamps can.

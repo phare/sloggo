@@ -36,10 +36,10 @@ export const searchParamsParser = {
   // CUSTOM FILTERS
   facility: parseAsArrayOf(parseAsInteger, ARRAY_DELIMITER),
   severity: parseAsArrayOf(parseAsInteger, ARRAY_DELIMITER),
-  hostname: parseAsString,
-  appName: parseAsString,
-  procId: parseAsString,
-  msgId: parseAsString,
+  hostname: parseAsArrayOf(parseAsString, ARRAY_DELIMITER),
+  appName: parseAsArrayOf(parseAsString, ARRAY_DELIMITER),
+  procId: parseAsArrayOf(parseAsString, ARRAY_DELIMITER),
+  msgId: parseAsArrayOf(parseAsString, ARRAY_DELIMITER),
   timestamp: parseAsArrayOf(parseAsTimestamp, RANGE_DELIMITER),
   // REQUIRED FOR SORTING & PAGINATION
   // Opaque keyset cursor returned by the API (must be passed back verbatim)

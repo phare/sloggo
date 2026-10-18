@@ -30,6 +30,18 @@ type InfiniteQueryMeta struct {
 	Metadata       map[string]any              `json:"metadata,omitempty"`
 }
 
+// splitCSV splits a comma-separated query parameter into its non-empty values.
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
 // LogsHandler handles the API endpoint for logs
 func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	requestStartTime := time.Now()
@@ -73,24 +85,21 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Filters
 	filters := make(map[string]any)
 
-	// Hostname filter
+	// Text filters accept a comma-separated list of values
 	if hostname := query.Get("hostname"); hostname != "" {
-		filters["hostname"] = hostname
+		filters["hostname"] = splitCSV(hostname)
 	}
 
-	// App name filter
 	if appName := query.Get("appName"); appName != "" {
-		filters["appName"] = appName
+		filters["appName"] = splitCSV(appName)
 	}
 
-	// Process ID filter
 	if procId := query.Get("procId"); procId != "" {
-		filters["procId"] = procId
+		filters["procId"] = splitCSV(procId)
 	}
 
-	// Message ID filter
 	if msgId := query.Get("msgId"); msgId != "" {
-		filters["msgId"] = msgId
+		filters["msgId"] = splitCSV(msgId)
 	}
 
 	// Facility filter

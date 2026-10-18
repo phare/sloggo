@@ -437,6 +437,23 @@ func GetLogs(limit int, cursor *Cursor, direction string, filters map[string]any
 	return logs, totalCount, filterCount, nextCursor, prevCursor, nil
 }
 
+// facetColumn describes a column exposed as a filter facet. maxValues limits
+// the number of distinct values returned for high-cardinality columns.
+type facetColumn struct {
+	key       string
+	column    string
+	maxValues int
+}
+
+var facetColumns = []facetColumn{
+	{key: "severity", column: "severity"},
+	{key: "facility", column: "facility"},
+	{key: "hostname", column: "hostname", maxValues: 100},
+	{key: "appName", column: "app_name", maxValues: 100},
+	{key: "procId", column: "procid", maxValues: 100},
+	{key: "msgId", column: "msgid", maxValues: 100},
+}
+
 // GetFacets retrieves facet metadata for filtering
 func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	// For facets, exclude temporal filters (date range) to show total state
@@ -453,112 +470,62 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 	var mu sync.Mutex
 	var globalErr error
 
-	// Fast direct queries in parallel
-	wg.Add(2)
+	for _, fc := range facetColumns {
+		wg.Add(1)
+		go func(fc facetColumn) {
+			defer wg.Done()
 
-	// Get severity facets concurrently with highly optimized query
-	go func() {
-		defer wg.Done()
+			query := fmt.Sprintf("SELECT %s as value, COUNT(*) as total FROM logs", fc.column)
+			args := []any{}
 
-		query := "SELECT severity as value, COUNT(*) as total FROM logs"
-		args := []any{}
+			whereClause := buildWhereClause(facetFilters, nil, "", "", "", &args)
+			if whereClause != "" {
+				query += " WHERE " + whereClause
+			}
 
-		whereClause := buildWhereClause(facetFilters, nil, "", "", "", &args)
-		if whereClause != "" {
-			query += " WHERE " + whereClause
-		}
+			query += fmt.Sprintf(" GROUP BY %s ORDER BY total DESC", fc.column)
+			if fc.maxValues > 0 {
+				query += fmt.Sprintf(" LIMIT %d", fc.maxValues)
+			}
 
-		query += " GROUP BY severity"
-
-		rows, err := db.Query(query, args...)
-		if err != nil {
-			mu.Lock()
-			globalErr = fmt.Errorf("error querying severity facets: %v", err)
-			mu.Unlock()
-			return
-		}
-		defer rows.Close()
-
-		facetRows := []FacetRow{}
-		for rows.Next() {
-			var row FacetRow
-			var valueStr string
-			err := rows.Scan(&valueStr, &row.Total)
+			rows, err := db.Query(query, args...)
 			if err != nil {
 				mu.Lock()
-				globalErr = fmt.Errorf("error scanning severity facet row: %v", err)
+				globalErr = fmt.Errorf("error querying %s facets: %v", fc.key, err)
 				mu.Unlock()
 				return
 			}
+			defer rows.Close()
 
-			// Try to convert to integer if possible
-			if intVal, err := strconv.Atoi(valueStr); err == nil {
-				row.Value = intVal
-			} else {
-				row.Value = valueStr
+			facetRows := []FacetRow{}
+			for rows.Next() {
+				var row FacetRow
+				var valueStr string
+				err := rows.Scan(&valueStr, &row.Total)
+				if err != nil {
+					mu.Lock()
+					globalErr = fmt.Errorf("error scanning %s facet row: %v", fc.key, err)
+					mu.Unlock()
+					return
+				}
+
+				// Try to convert to integer if possible
+				if intVal, err := strconv.Atoi(valueStr); err == nil {
+					row.Value = intVal
+				} else {
+					row.Value = valueStr
+				}
+
+				facetRows = append(facetRows, row)
 			}
 
-			facetRows = append(facetRows, row)
-		}
-
-		mu.Lock()
-		facets["severity"] = FacetMetadata{
-			Rows: facetRows,
-		}
-		mu.Unlock()
-	}()
-
-	// Get facility facets concurrently
-	go func() {
-		defer wg.Done()
-
-		query := "SELECT facility as value, COUNT(*) as total FROM logs"
-		args := []any{}
-
-		whereClause := buildWhereClause(facetFilters, nil, "", "", "", &args)
-		if whereClause != "" {
-			query += " WHERE " + whereClause
-		}
-
-		query += " GROUP BY facility"
-
-		rows, err := db.Query(query, args...)
-		if err != nil {
 			mu.Lock()
-			globalErr = fmt.Errorf("error querying facility facets: %v", err)
+			facets[fc.key] = FacetMetadata{
+				Rows: facetRows,
+			}
 			mu.Unlock()
-			return
-		}
-		defer rows.Close()
-
-		facetRows := []FacetRow{}
-		for rows.Next() {
-			var row FacetRow
-			var valueStr string
-			err := rows.Scan(&valueStr, &row.Total)
-			if err != nil {
-				mu.Lock()
-				globalErr = fmt.Errorf("error scanning facility facet row: %v", err)
-				mu.Unlock()
-				return
-			}
-
-			// Try to convert to integer if possible
-			if intVal, err := strconv.Atoi(valueStr); err == nil {
-				row.Value = intVal
-			} else {
-				row.Value = valueStr
-			}
-
-			facetRows = append(facetRows, row)
-		}
-
-		mu.Lock()
-		facets["facility"] = FacetMetadata{
-			Rows: facetRows,
-		}
-		mu.Unlock()
-	}()
+		}(fc)
+	}
 
 	// Wait for all goroutines to complete
 	wg.Wait()
@@ -698,17 +665,21 @@ func buildWhereClause(filters map[string]any, cursor *Cursor, sortField, sortOrd
 				conditions = append(conditions, fmt.Sprintf("facility IN (%s)", strings.Join(placeholders, ",")))
 			}
 		case "hostname":
-			conditions = append(conditions, "hostname = ?")
-			*args = append(*args, value.(string))
+			if clause := textInClause("hostname", value, args); clause != "" {
+				conditions = append(conditions, clause)
+			}
 		case "procId":
-			conditions = append(conditions, "procid = ?")
-			*args = append(*args, value.(string))
+			if clause := textInClause("procid", value, args); clause != "" {
+				conditions = append(conditions, clause)
+			}
 		case "appName":
-			conditions = append(conditions, "app_name = ?")
-			*args = append(*args, value.(string))
+			if clause := textInClause("app_name", value, args); clause != "" {
+				conditions = append(conditions, clause)
+			}
 		case "msgId":
-			conditions = append(conditions, "msgid = ?")
-			*args = append(*args, value.(string))
+			if clause := textInClause("msgid", value, args); clause != "" {
+				conditions = append(conditions, clause)
+			}
 		case "startDate":
 			conditions = append(conditions, "timestamp >= ?")
 			*args = append(*args, value.(time.Time).Format(time.RFC3339Nano))
@@ -723,6 +694,33 @@ func buildWhereClause(filters map[string]any, cursor *Cursor, sortField, sortOrd
 	}
 
 	return strings.Join(conditions, " AND ")
+}
+
+// textInClause builds an IN clause from a filter that is either a single value
+// or a list of values.
+func textInClause(column string, value any, args *[]any) string {
+	var values []string
+	switch v := value.(type) {
+	case string:
+		values = []string{v}
+	case []string:
+		values = v
+	default:
+		return ""
+	}
+
+	placeholders := make([]string, 0, len(values))
+	for _, s := range values {
+		if s == "" {
+			continue
+		}
+		placeholders = append(placeholders, "?")
+		*args = append(*args, s)
+	}
+	if len(placeholders) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s IN (%s)", column, strings.Join(placeholders, ","))
 }
 
 // buildCursorCondition builds the keyset comparison for the given cursor.
