@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Table } from "@tanstack/react-table";
+import type { ReactTable } from "@tanstack/react-table";
+import type { DataTableFeatures } from "@/lib/table/features";
 import { DataTableSheetRowAction } from "./data-table-sheet-row-action";
 import { DataTableFilterField, SheetField } from "../types";
 import { SheetDetailsContentSkeleton } from "./data-table-sheet-skeleton";
@@ -10,7 +11,7 @@ import { SheetDetailsContentSkeleton } from "./data-table-sheet-skeleton";
 interface DataTableSheetContentProps<TData, TMeta>
   extends React.HTMLAttributes<HTMLDListElement> {
   data?: TData;
-  table: Table<TData>;
+  table: ReactTable<DataTableFeatures, any>;
   fields: SheetField<TData, TMeta>[];
   filterFields: DataTableFilterField<TData>[];
   // totalRows: number;

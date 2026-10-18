@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis } from "recharts";
-import type { CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import type { MouseHandlerDataParam } from "recharts";
 import { BaseChartSchema, TimelineChartSchema } from "./schema";
 
 export const description = "A stacked bar chart";
@@ -45,8 +45,10 @@ export function TimelineChart<TChart extends BaseChartSchema>({
   columnId,
 }: TimelineChartProps<TChart>) {
   const { table } = useDataTable();
-  const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
-  const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
+  const [refAreaLeft, setRefAreaLeft] = useState<string | number | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<string | number | null>(
+    null,
+  );
   const [isSelecting, setIsSelecting] = useState(false);
 
   // REMINDER: date has to be a string for tooltip label to work - don't ask me why
@@ -67,20 +69,20 @@ export function TimelineChart<TChart extends BaseChartSchema>({
     return { interval, period: calculatePeriod(interval) };
   }, [data]);
 
-  const handleMouseDown: CategoricalChartFunc = (e) => {
+  const handleMouseDown = (e: MouseHandlerDataParam) => {
     if (e.activeLabel) {
       setRefAreaLeft(e.activeLabel);
       setIsSelecting(true);
     }
   };
 
-  const handleMouseMove: CategoricalChartFunc = (e) => {
+  const handleMouseMove = (e: MouseHandlerDataParam) => {
     if (isSelecting && e.activeLabel) {
       setRefAreaRight(e.activeLabel);
     }
   };
 
-  const handleMouseUp: CategoricalChartFunc = (e) => {
+  const handleMouseUp = (e: MouseHandlerDataParam) => {
     if (refAreaLeft && refAreaRight) {
       const [left, right] = [refAreaLeft, refAreaRight].sort(
         (a, b) => new Date(a).getTime() - new Date(b).getTime(),
@@ -139,7 +141,7 @@ export function TimelineChart<TChart extends BaseChartSchema>({
           content={
             <ChartTooltipContent
               labelFormatter={(value) => {
-                const date = new Date(value);
+                const date = new Date(value as string);
                 if (isNaN(date.getTime())) return "N/A";
                 if (timerange.period === "10m") {
                   return format(date, "LLL dd, HH:mm:ss");

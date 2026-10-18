@@ -1,12 +1,14 @@
 import { DataTableFilterField } from "@/components/data-table/types";
+import type { DataTableFeatures } from "@/lib/table/features";
 import type {
   ColumnDef,
   ColumnFiltersState,
+  ColumnVisibilityState,
   PaginationState,
+  ReactTable,
+  RowData,
   RowSelectionState,
   SortingState,
-  Table,
-  VisibilityState,
 } from "@tanstack/react-table";
 import { createContext, useContext, useMemo } from "react";
 import { ControlsProvider } from "../../providers/controls";
@@ -19,40 +21,39 @@ interface DataTableStateContextType {
   sorting: SortingState;
   rowSelection: RowSelectionState;
   columnOrder: string[];
-  columnVisibility: VisibilityState;
+  columnVisibility: ColumnVisibilityState;
   pagination: PaginationState;
   enableColumnOrdering: boolean;
 }
 
-interface DataTableBaseContextType<TData = unknown, TValue = unknown> {
-  table: Table<TData>;
+interface DataTableBaseContextType<TData extends RowData = RowData> {
+  table: ReactTable<DataTableFeatures, TData>;
   filterFields: DataTableFilterField<TData>[];
-  columns: ColumnDef<TData, TValue>[];
+  columns: ColumnDef<DataTableFeatures, TData>[];
   isLoading?: boolean;
   getFacetedUniqueValues?: (
-    table: Table<TData>,
+    table: ReactTable<DataTableFeatures, TData>,
     columnId: string,
   ) => Map<string, number>;
   getFacetedMinMaxValues?: (
-    table: Table<TData>,
+    table: ReactTable<DataTableFeatures, TData>,
     columnId: string,
   ) => undefined | [number, number];
 }
 
-interface DataTableContextType<TData = unknown, TValue = unknown>
+interface DataTableContextType<TData extends RowData = RowData>
   extends DataTableStateContextType,
-    DataTableBaseContextType<TData, TValue> {}
+    DataTableBaseContextType<TData> {}
 
-export const DataTableContext = createContext<DataTableContextType<
-  any,
-  any
-> | null>(null);
+export const DataTableContext = createContext<DataTableContextType<any> | null>(
+  null,
+);
 
-export function DataTableProvider<TData, TValue>({
+export function DataTableProvider<TData extends RowData>({
   children,
   ...props
 }: Partial<DataTableStateContextType> &
-  DataTableBaseContextType<TData, TValue> & {
+  DataTableBaseContextType<TData> & {
     children: React.ReactNode;
   }) {
   const value = useMemo(
@@ -84,18 +85,18 @@ export function DataTableProvider<TData, TValue>({
   );
 
   return (
-    <DataTableContext.Provider value={value}>
+    <DataTableContext.Provider value={value as DataTableContextType}>
       <ControlsProvider>{children}</ControlsProvider>
     </DataTableContext.Provider>
   );
 }
 
-export function useDataTable<TData, TValue>() {
+export function useDataTable<TData extends RowData = RowData>() {
   const context = useContext(DataTableContext);
 
   if (!context) {
     throw new Error("useDataTable must be used within a DataTableProvider");
   }
 
-  return context as DataTableContextType<TData, TValue>;
+  return context as DataTableContextType<TData>;
 }

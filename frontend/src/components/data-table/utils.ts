@@ -8,7 +8,7 @@ import {
   SLIDER_DELIMITER,
 } from "@/lib/delimiters";
 
-export function deserialize<T extends z.AnyZodObject>(schema: T) {
+export function deserialize<T extends z.ZodObject>(schema: T) {
   const castToSchema = z.preprocess((val) => {
     if (typeof val !== "string") return val;
     return val

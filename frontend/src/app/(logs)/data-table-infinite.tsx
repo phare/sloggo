@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { useHotKey } from "@/hooks/use-hot-key";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatCompactNumber } from "@/lib/format";
-import { arrSome, inDateRange } from "@/lib/table/filterfns";
 import { cn } from "@/lib/utils";
 import {
   FetchPreviousPageOptions,
@@ -33,23 +32,17 @@ import {
 import type {
   ColumnDef,
   ColumnFiltersState,
+  ColumnVisibilityState,
   Row,
+  RowData,
   RowSelectionState,
   SortingState,
+  ReactTable,
   TableOptions,
   Table as TTable,
-  VisibilityState,
 } from "@tanstack/react-table";
-import {
-  flexRender,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  getFacetedMinMaxValues as getTTableFacetedMinMaxValues,
-  getFacetedUniqueValues as getTTableFacetedUniqueValues,
-  useReactTable,
-} from "@tanstack/react-table";
+import { flexRender, useTable } from "@tanstack/react-table";
+import { dataTableFeatures, type DataTableFeatures } from "@/lib/table/features";
 import { LoaderCircle } from "lucide-react";
 import { useQueryState, useQueryStates, type ParserBuilder } from "nuqs";
 import * as React from "react";
@@ -61,25 +54,25 @@ import { searchParamsParser } from "./search-params";
 import { TimelineChart } from "./timeline-chart";
 
 // TODO: add a possible chartGroupBy
-export interface DataTableInfiniteProps<TData, TValue, TMeta> {
-  columns: ColumnDef<TData, TValue>[];
-  getRowClassName?: (row: Row<TData>) => string;
+export interface DataTableInfiniteProps<TData extends RowData, TMeta> {
+  columns: ColumnDef<DataTableFeatures, TData>[];
+  getRowClassName?: (row: Row<DataTableFeatures, TData>) => string;
   // REMINDER: make sure to pass the correct id to access the rows
-  getRowId?: TableOptions<TData>["getRowId"];
+  getRowId?: TableOptions<DataTableFeatures, TData>["getRowId"];
   data: TData[];
   defaultColumnFilters?: ColumnFiltersState;
   defaultColumnSorting?: SortingState;
   defaultRowSelection?: RowSelectionState;
-  defaultColumnVisibility?: VisibilityState;
+  defaultColumnVisibility?: ColumnVisibilityState;
   filterFields?: DataTableFilterField<TData>[];
   sheetFields?: SheetField<TData, TMeta>[];
-  // REMINDER: close to the same signature as the `getFacetedUniqueValues` of the `useReactTable`
+  // REMINDER: close to the same signature as the `getFacetedUniqueValues` of the `useTable`
   getFacetedUniqueValues?: (
-    table: TTable<TData>,
+    table: TTable<DataTableFeatures, TData>,
     columnId: string,
   ) => Map<string, number>;
   getFacetedMinMaxValues?: (
-    table: TTable<TData>,
+    table: TTable<DataTableFeatures, TData>,
     columnId: string,
   ) => undefined | [number, number];
   totalRows?: number;
@@ -98,14 +91,14 @@ export interface DataTableInfiniteProps<TData, TValue, TMeta> {
     options?: FetchPreviousPageOptions | undefined,
   ) => Promise<unknown>;
   refetch: (options?: RefetchOptions | undefined) => void;
-  renderLiveRow?: (props?: { row: Row<TData> }) => React.ReactNode;
-  renderSheetTitle: (props: { row?: Row<TData> }) => React.ReactNode;
+  renderLiveRow?: (props?: { row: Row<DataTableFeatures, TData> }) => React.ReactNode;
+  renderSheetTitle: (props: { row?: Row<DataTableFeatures, TData> }) => React.ReactNode;
   // TODO:
   renderChart?: () => React.ReactNode;
   searchParamsParser: Record<string, ParserBuilder<any>>;
 }
 
-export function DataTableInfinite<TData, TValue, TMeta>({
+export function DataTableInfinite<TData extends RowData, TMeta>({
   columns,
   getRowClassName,
   getRowId,
@@ -133,7 +126,7 @@ export function DataTableInfinite<TData, TValue, TMeta>({
   renderLiveRow,
   renderSheetTitle,
   searchParamsParser,
-}: DataTableInfiniteProps<TData, TValue, TMeta>) {
+}: DataTableInfiniteProps<TData, TMeta>) {
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>(defaultColumnFilters);
   const [sorting, setSorting] =
@@ -145,7 +138,7 @@ export function DataTableInfinite<TData, TValue, TMeta>({
     [],
   );
   const [columnVisibility, setColumnVisibility] =
-    useLocalStorage<VisibilityState>(
+    useLocalStorage<ColumnVisibilityState>(
       "data-table-visibility",
       defaultColumnVisibility,
     );
@@ -183,7 +176,8 @@ export function DataTableInfinite<TData, TValue, TMeta>({
     return () => observer.unobserve(topBar);
   }, [topBarRef]);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data,
     columns,
     state: {
@@ -201,13 +195,6 @@ export function DataTableInfinite<TData, TValue, TMeta>({
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
-    getSortedRowModel: getSortedRowModel(),
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getTTableFacetedUniqueValues(),
-    getFacetedMinMaxValues: getTTableFacetedMinMaxValues(),
-    filterFns: { inDateRange, arrSome },
     debugAll: process.env.NEXT_PUBLIC_TABLE_DEBUG === "true",
     meta: { getRowClassName },
   });
@@ -279,9 +266,9 @@ export function DataTableInfinite<TData, TValue, TMeta>({
     }
     return colSizes;
   }, [
-    table.getState().columnSizingInfo,
-    table.getState().columnSizing,
-    table.getState().columnVisibility,
+    table.state.columnResizing,
+    table.state.columnSizing,
+    table.state.columnVisibility,
   ]);
 
   useHotKey(() => {
@@ -324,7 +311,7 @@ export function DataTableInfinite<TData, TValue, TMeta>({
             <div className="flex h-[46px] items-center justify-between gap-3">
               <p className="px-2 font-medium text-foreground">Filters</p>
               <div>
-                {table.getState().columnFilters.length ? (
+                {table.state.columnFilters.length ? (
                   <DataTableResetButton />
                 ) : null}
               </div>
@@ -500,7 +487,7 @@ export function DataTableInfinite<TData, TValue, TMeta>({
         titleClassName="font-mono"
       >
         <MemoizedDataTableSheetContent
-          table={table}
+          table={table as ReactTable<DataTableFeatures, any>}
           data={selectedRow?.original}
           filterFields={filterFields}
           fields={sheetFields}
@@ -525,13 +512,13 @@ export function DataTableInfinite<TData, TValue, TMeta>({
  * e.g. DataTableFilterControls, DataTableFilterCommand, DataTableToolbar, DataTableHeader
  */
 
-function Row<TData>({
+function Row<TData extends RowData>({
   row,
   table,
   selected,
 }: {
-  row: Row<TData>;
-  table: TTable<TData>;
+  row: Row<DataTableFeatures, TData>;
+  table: TTable<DataTableFeatures, TData>;
   // REMINDER: row.getIsSelected(); - just for memoization
   selected?: boolean;
 }) {

@@ -26,24 +26,26 @@ import { startOfHour } from "date-fns";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { endOfDay } from "date-fns";
 import { Table } from "@tanstack/react-table";
+import type { RowData } from "@tanstack/react-table";
+import type { DataTableFeatures } from "@/lib/table/features";
 import { CalendarClock } from "lucide-react";
 import { endOfHour } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DataTableFilterField } from "../types";
 
 interface DataTableSheetRowActionProps<
-  TData,
-  TFields extends DataTableFilterField<TData>
+  TData extends RowData,
+  TFields extends DataTableFilterField<TData>,
 > extends React.ComponentPropsWithRef<typeof DropdownMenuTrigger> {
   fieldValue: TFields["value"];
   filterFields: TFields[];
   value: string | number;
-  table: Table<TData>;
+  table: Table<DataTableFeatures, TData>;
 }
 
 export function DataTableSheetRowAction<
-  TData,
-  TFields extends DataTableFilterField<TData>
+  TData extends RowData,
+  TFields extends DataTableFilterField<TData>,
 >({
   fieldValue,
   filterFields,

@@ -28,11 +28,11 @@ FROM node:22-trixie-slim AS frontend-builder
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-COPY frontend/pnpm-lock.yaml frontend/package.json ./
-RUN pnpm fetch --no-optional
+COPY frontend/pnpm-lock.yaml frontend/package.json frontend/pnpm-workspace.yaml ./
+RUN pnpm fetch
 
 COPY frontend/ .
-RUN pnpm install --offline --no-optional
+RUN pnpm install --offline
 RUN pnpm exec next telemetry disable
 RUN pnpm build
 

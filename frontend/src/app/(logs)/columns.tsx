@@ -4,6 +4,7 @@ import { TextWithTooltip } from "@/components/custom/text-with-tooltip";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { DataTableColumnSeverityIndicator } from "@/components/data-table/data-table-column/data-table-column-severity-indicator";
 import { SEVERITY_VALUES } from "@/constants/severity";
+import type { DataTableFeatures } from "@/lib/table/features";
 import type { ColumnDef } from "@tanstack/react-table";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
 import type { ColumnSchema } from "./schema";
@@ -36,7 +37,7 @@ const FACILITY_NAMES = [
   "Local7",
 ];
 
-export const columns: ColumnDef<ColumnSchema>[] = [
+export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
   {
     id: "severity",
     accessorKey: "severity",
