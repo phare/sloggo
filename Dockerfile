@@ -1,5 +1,5 @@
 # Stage 1: Build the Go binary
-FROM golang:1.25-trixie AS go-builder
+FROM golang:1.27-trixie AS go-builder
 
 ARG VERSION=dev
 ARG DEBUG_SYMBOLS=false
