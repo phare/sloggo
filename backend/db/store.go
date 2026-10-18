@@ -264,47 +264,134 @@ func performLogCleanupPeriodically() {
 	}
 }
 
-// GetLogs retrieves logs from the database based on filters
-func GetLogs(limit int, cursor time.Time, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, int, int, error) {
-	// Build query
+// logSortColumns maps the logical sort field used by the API to the physical
+// column name in the logs table.
+var logSortColumns = map[string]string{
+	"timestamp":      "timestamp",
+	"severity":       "severity",
+	"facility":       "facility",
+	"hostname":       "hostname",
+	"appName":        "app_name",
+	"procId":         "procid",
+	"msgId":          "msgid",
+	"message":        "msg",
+	"structuredData": "structured_data",
+}
+
+// Cursor is a keyset pagination position: the value of the sort column for the
+// boundary row of a page plus its rowid. The rowid breaks ties between rows
+// sharing the same sort value (e.g. identical timestamps), which is required
+// for stable pagination.
+type Cursor struct {
+	Value string
+	RowID int64
+}
+
+// ParseCursor decodes a cursor returned by the API. It returns false when the
+// input is not a valid cursor.
+func ParseCursor(s string) (Cursor, bool) {
+	i := strings.LastIndex(s, ":")
+	if i < 0 {
+		return Cursor{}, false
+	}
+	rowID, err := strconv.ParseInt(s[i+1:], 10, 64)
+	if err != nil {
+		return Cursor{}, false
+	}
+	return Cursor{Value: s[:i], RowID: rowID}, true
+}
+
+func formatCursor(value string, rowID int64) string {
+	return value + ":" + strconv.FormatInt(rowID, 10)
+}
+
+// cursorValue returns the sort column value of an entry in the string form used
+// by the cursor.
+func cursorValue(entry models.LogEntry, sortField string) string {
+	switch sortField {
+	case "severity":
+		return strconv.Itoa(int(entry.Severity))
+	case "facility":
+		return strconv.Itoa(int(entry.Facility))
+	case "hostname":
+		return entry.Hostname
+	case "appName":
+		return entry.AppName
+	case "procId":
+		return entry.ProcID
+	case "msgId":
+		return entry.MsgID
+	case "message":
+		return entry.Message
+	case "structuredData":
+		return entry.StructuredData
+	default:
+		return strconv.FormatInt(entry.Timestamp.UnixNano()/int64(time.Millisecond), 10)
+	}
+}
+
+// cursorArg converts a cursor value into the argument expected by the sort
+// column, so that the keyset comparison uses matching types.
+func cursorArg(sortField, value string) any {
+	switch sortField {
+	case "severity", "facility":
+		if n, err := strconv.Atoi(value); err == nil {
+			return n
+		}
+	case "timestamp":
+		if ms, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return time.Unix(0, ms*int64(time.Millisecond)).UTC().Format(time.RFC3339Nano)
+		}
+	}
+	return value
+}
+
+// GetLogs retrieves a page of logs using keyset (cursor) pagination.
+//
+// The sort key is (sort column, rowid): rowid is a stable tiebreaker that keeps
+// pagination consistent when several rows share the same sort value, which is
+// common for syslog (identical timestamps). The returned cursors are opaque
+// strings that must be passed back verbatim.
+func GetLogs(limit int, cursor *Cursor, direction string, filters map[string]any, sortField string, sortOrder string) ([]models.LogEntry, int, int, *string, *string, error) {
+	column, ok := logSortColumns[sortField]
+	if !ok {
+		sortField, column = "timestamp", "timestamp"
+	}
+	if sortOrder != "ASC" {
+		sortOrder = "DESC"
+	}
+
+	// Row counts are independent of the pagination cursor: filterRowCount is the
+	// number of rows matching the filters, totalCount the whole table.
+	var countArgs []any
+	countClause := buildWhereClause(filters, nil, sortField, sortOrder, direction, &countArgs)
+	countQuery := "SELECT COUNT(*) FROM logs"
+	if countClause != "" {
+		countQuery += " WHERE " + countClause
+	}
+	var filterCount, totalCount int
+	combinedCountQuery := fmt.Sprintf("SELECT (%s) as filtered_count, (SELECT COUNT(*) FROM logs) as total_count", countQuery)
+	if err := db.QueryRow(combinedCountQuery, countArgs...).Scan(&filterCount, &totalCount); err != nil {
+		return nil, 0, 0, nil, nil, fmt.Errorf("error counting logs: %v", err)
+	}
+
+	// Data query: filters plus the cursor condition.
+	var args []any
+	whereClause := buildWhereClause(filters, cursor, sortField, sortOrder, direction, &args)
+
 	queryBuilder := strings.Builder{}
-	countQueryBuilder := strings.Builder{}
-	filterQueryBuilder := strings.Builder{}
-	args := []any{}
-
-	queryBuilder.WriteString("SELECT rowid, facility, severity, timestamp, hostname, app_name, procid, msgid, structured_data, msg FROM logs ")
-	countQueryBuilder.WriteString("SELECT COUNT(*) FROM logs ")
-
-	whereClause := buildWhereClause(filters, cursor, direction, &args)
+	queryBuilder.WriteString("SELECT rowid, facility, severity, timestamp, hostname, app_name, procid, msgid, structured_data, msg FROM logs")
 	if whereClause != "" {
-		filterQueryBuilder.WriteString("WHERE ")
-		filterQueryBuilder.WriteString(whereClause)
+		queryBuilder.WriteString(" WHERE " + whereClause)
 	}
-
-	queryBuilder.WriteString(filterQueryBuilder.String())
-	countQueryBuilder.WriteString(filterQueryBuilder.String())
-
-	if sortField != "" && sortOrder != "" {
-		queryBuilder.WriteString(fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder))
-	} else {
-		queryBuilder.WriteString(" ORDER BY timestamp DESC")
-	}
-
+	queryBuilder.WriteString(fmt.Sprintf(" ORDER BY %s %s, rowid %s", column, sortOrder, sortOrder))
 	queryBuilder.WriteString(fmt.Sprintf(" LIMIT %d", limit))
 
 	rows, err := db.Query(queryBuilder.String(), args...)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("error querying logs: %v", err)
+		return nil, 0, 0, nil, nil, fmt.Errorf("error querying logs: %v", err)
 	}
 	defer rows.Close()
-
-	// Execute combined count query to get filtered and total counts
-	var filterCount, totalCount int
-	combinedCountQuery := fmt.Sprintf("SELECT (%s) as filtered_count, (SELECT COUNT(*) FROM logs) as total_count", countQueryBuilder.String())
-	err = db.QueryRow(combinedCountQuery, args...).Scan(&filterCount, &totalCount)
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf("error counting logs: %v", err)
-	}
 
 	// Parse results
 	logs := []models.LogEntry{}
@@ -325,19 +412,27 @@ func GetLogs(limit int, cursor time.Time, direction string, filters map[string]a
 			&entry.Message,
 		)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("error scanning log row: %v", err)
+			return nil, 0, 0, nil, nil, fmt.Errorf("error scanning log row: %v", err)
 		}
 
 		// Parse timestamp
 		entry.Timestamp, err = time.Parse(time.RFC3339Nano, timestampStr)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("error parsing timestamp: %v", err)
+			return nil, 0, 0, nil, nil, fmt.Errorf("error parsing timestamp: %v", err)
 		}
 
 		logs = append(logs, entry)
 	}
 
-	return logs, totalCount, filterCount, nil
+	// Cursors point at the boundary rows of the returned page.
+	var nextCursor, prevCursor *string
+	if len(logs) > 0 {
+		first := formatCursor(cursorValue(logs[0], sortField), logs[0].RowID)
+		last := formatCursor(cursorValue(logs[len(logs)-1], sortField), logs[len(logs)-1].RowID)
+		prevCursor, nextCursor = &first, &last
+	}
+
+	return logs, totalCount, filterCount, nextCursor, prevCursor, nil
 }
 
 // GetFacets retrieves facet metadata for filtering
@@ -366,7 +461,7 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		query := "SELECT severity as value, COUNT(*) as total FROM logs"
 		args := []any{}
 
-		whereClause := buildWhereClause(facetFilters, time.Time{}, "", &args)
+		whereClause := buildWhereClause(facetFilters, nil, "", "", "", &args)
 		if whereClause != "" {
 			query += " WHERE " + whereClause
 		}
@@ -418,7 +513,7 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 		query := "SELECT facility as value, COUNT(*) as total FROM logs"
 		args := []any{}
 
-		whereClause := buildWhereClause(facetFilters, time.Time{}, "", &args)
+		whereClause := buildWhereClause(facetFilters, nil, "", "", "", &args)
 		if whereClause != "" {
 			query += " WHERE " + whereClause
 		}
@@ -475,17 +570,17 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 }
 
 // GetChartData retrieves time-series data for charts
-func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, error) {
+func GetChartData(now time.Time, filters map[string]any) ([]ChartDataPoint, error) {
 	chartFilters := make(map[string]any)
 	for k, v := range filters {
 		chartFilters[k] = v
 	}
 
-	// If date filters are not provided, we use the cursor set to the next hour as the end
+	// If date filters are not provided, we use the current time as the end
 	// time for chart data and go back 24 hours to get the last 24 hours of data.
 	if chartFilters["startDate"] == nil || chartFilters["endDate"] == nil {
-		endDate := cursor.Truncate(time.Hour).Add(time.Hour)
-		startDate := cursor.Add(-24 * time.Hour)
+		endDate := now.Truncate(time.Hour).Add(time.Hour)
+		startDate := now.Add(-24 * time.Hour)
 		chartFilters["endDate"] = endDate
 		chartFilters["startDate"] = startDate
 	}
@@ -526,7 +621,7 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	`, truncateUnit))
 
 	// Add WHERE clause for filtering (excluding temporal constraints)
-	whereClause := buildWhereClause(chartFilters, time.Time{}, "", &args)
+	whereClause := buildWhereClause(chartFilters, nil, "", "", "", &args)
 	if whereClause != "" {
 		queryBuilder.WriteString(" WHERE ")
 		queryBuilder.WriteString(whereClause)
@@ -567,9 +662,10 @@ func GetChartData(cursor time.Time, filters map[string]any) ([]ChartDataPoint, e
 	return chartData, nil
 }
 
-// Helper function to build WHERE clause from filters
-func buildWhereClause(filters map[string]any, cursor time.Time, direction string, args *[]any) string {
-	if len(filters) == 0 && cursor.IsZero() {
+// buildWhereClause builds the WHERE clause for the given filters and, when
+// cursor is not nil, the keyset comparison for the current page.
+func buildWhereClause(filters map[string]any, cursor *Cursor, sortField, sortOrder, direction string, args *[]any) string {
+	if len(filters) == 0 && cursor == nil {
 		return ""
 	}
 
@@ -620,14 +716,26 @@ func buildWhereClause(filters map[string]any, cursor time.Time, direction string
 		}
 	}
 
-	if !cursor.IsZero() {
-		if direction == "prev" {
-			conditions = append(conditions, "timestamp > ?")
-		} else {
-			conditions = append(conditions, "timestamp < ?")
-		}
-		*args = append(*args, cursor.Format(time.RFC3339Nano))
+	if cursor != nil {
+		conditions = append(conditions, buildCursorCondition(sortField, logSortColumns[sortField], sortOrder, direction, *cursor, args))
 	}
 
 	return strings.Join(conditions, " AND ")
+}
+
+// buildCursorCondition builds the keyset comparison for the given cursor.
+//
+// direction "next" moves towards later pages in the current sort order, "prev"
+// towards earlier ones. rowid is used to break ties on the sort column.
+func buildCursorCondition(sortField, column, sortOrder, direction string, cursor Cursor, args *[]any) string {
+	forward := direction != "prev"
+	ascending := sortOrder == "ASC"
+
+	op := "<"
+	if ascending == forward {
+		op = ">"
+	}
+
+	*args = append(*args, cursorArg(sortField, cursor.Value), cursorArg(sortField, cursor.Value), cursor.RowID)
+	return fmt.Sprintf("(%s %s ? OR (%s = ? AND rowid %s ?))", column, op, column, op)
 }

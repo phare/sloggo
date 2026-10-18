@@ -42,7 +42,8 @@ export const searchParamsParser = {
   msgId: parseAsString,
   timestamp: parseAsArrayOf(parseAsTimestamp, RANGE_DELIMITER),
   // REQUIRED FOR SORTING & PAGINATION
-  cursor: parseAsTimestamp.withDefault(new Date()),
+  // Opaque keyset cursor returned by the API (must be passed back verbatim)
+  cursor: parseAsString,
   sort: parseAsSort,
   size: parseAsInteger.withDefault(40),
   start: parseAsInteger.withDefault(0),

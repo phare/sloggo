@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"sloggo/models"
 	"testing"
 	"time"
@@ -158,5 +159,81 @@ func TestBatchProcessing(t *testing.T) {
 
 	if count < len(entries) {
 		t.Errorf("Expected at least %d entries in database, got %d", len(entries), count)
+	}
+}
+
+// TestGetLogsPaginationWithDuplicateTimestamps verifies that keyset pagination
+// returns every row exactly once when all rows share the same timestamp.
+func TestGetLogsPaginationWithDuplicateTimestamps(t *testing.T) {
+	const (
+		hostname = "pagination-dup-host"
+		total    = 25
+		pageSize = 10
+	)
+	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+
+	for i := 0; i < total; i++ {
+		err := StoreLog(models.LogEntry{
+			Severity:       6,
+			Facility:       1,
+			Version:        1,
+			Timestamp:      timestamp,
+			Hostname:       hostname,
+			AppName:        "pagination-app",
+			ProcID:         "-",
+			MsgID:          "-",
+			StructuredData: "-",
+			Message:        fmt.Sprintf("pagination message %d", i),
+		})
+		if err != nil {
+			t.Fatalf("Failed to store log entry: %v", err)
+		}
+	}
+	if err := ProcessBatchStoreLogs(); err != nil {
+		t.Fatalf("Failed to process batch: %v", err)
+	}
+
+	filters := map[string]any{"hostname": hostname}
+
+	for _, sortOrder := range []string{"DESC", "ASC"} {
+		t.Run(sortOrder, func(t *testing.T) {
+			seen := make(map[int64]bool, total)
+			var cursor *Cursor
+			pages := 0
+
+			for {
+				logs, _, filterCount, nextCursor, _, err := GetLogs(pageSize, cursor, "next", filters, "timestamp", sortOrder)
+				if err != nil {
+					t.Fatalf("GetLogs failed: %v", err)
+				}
+				if filterCount != total {
+					t.Fatalf("filterCount = %d, want %d", filterCount, total)
+				}
+				for _, entry := range logs {
+					if seen[entry.RowID] {
+						t.Fatalf("row %d returned more than once", entry.RowID)
+					}
+					seen[entry.RowID] = true
+				}
+
+				pages++
+				if nextCursor == nil {
+					break
+				}
+				parsed, ok := ParseCursor(*nextCursor)
+				if !ok {
+					t.Fatalf("invalid cursor %q", *nextCursor)
+				}
+				cursor = &parsed
+
+				if pages > total {
+					t.Fatal("pagination did not terminate")
+				}
+			}
+
+			if len(seen) != total {
+				t.Fatalf("returned %d unique rows, want %d", len(seen), total)
+			}
+		})
 	}
 }
