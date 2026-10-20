@@ -163,14 +163,15 @@ func TestBatchProcessing(t *testing.T) {
 }
 
 // TestGetLogsPaginationWithDuplicateTimestamps verifies that keyset pagination
-// returns every row exactly once when all rows share the same timestamp.
+// returns every row exactly once when all rows share the same timestamp. The
+// timestamp has sub-millisecond precision, as RFC 5424 timestamps can.
 func TestGetLogsPaginationWithDuplicateTimestamps(t *testing.T) {
 	const (
 		hostname = "pagination-dup-host"
 		total    = 25
 		pageSize = 10
 	)
-	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second).Add(123456 * time.Microsecond)
 
 	for i := 0; i < total; i++ {
 		err := StoreLog(models.LogEntry{

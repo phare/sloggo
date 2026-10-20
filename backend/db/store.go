@@ -326,7 +326,9 @@ func cursorValue(entry models.LogEntry, sortField string) string {
 	case "structuredData":
 		return entry.StructuredData
 	default:
-		return strconv.FormatInt(entry.Timestamp.UnixNano()/int64(time.Millisecond), 10)
+		// Microseconds match the precision of the TIMESTAMP column, so the
+		// cursor equals the stored value and the rowid tiebreaker applies.
+		return strconv.FormatInt(entry.Timestamp.UnixMicro(), 10)
 	}
 }
 
@@ -339,8 +341,8 @@ func cursorArg(sortField, value string) any {
 			return n
 		}
 	case "timestamp":
-		if ms, err := strconv.ParseInt(value, 10, 64); err == nil {
-			return time.Unix(0, ms*int64(time.Millisecond)).UTC().Format(time.RFC3339Nano)
+		if us, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return time.UnixMicro(us).UTC().Format(time.RFC3339Nano)
 		}
 	}
 	return value
