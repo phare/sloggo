@@ -6,7 +6,8 @@ import { useHotKey } from "@/hooks/use-hot-key";
 import { getSeverityRowClassName } from "@/lib/request/severity";
 import { cn } from "@/lib/utils";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import type { Table as TTable } from "@tanstack/react-table";
+import type { RowData, Table as TTable } from "@tanstack/react-table";
+import type { DataTableFeatures } from "@/lib/table/features";
 import { useQueryState, useQueryStates } from "nuqs";
 import * as React from "react";
 import { LiveRow } from "./_components/live-row";
@@ -157,10 +158,10 @@ export function useLiveMode<TData extends { timestamp: Date; id: number }>(
   return { row: anchorRow, timestamp: liveTimestamp.current };
 }
 
-export function getFacetedUniqueValues<TData>(
+export function getFacetedUniqueValues<TData extends RowData>(
   facets?: Record<string, FacetMetadataSchema>,
 ) {
-  return (_: TTable<TData>, columnId: string): Map<string, number> => {
+  return (_: TTable<DataTableFeatures, TData>, columnId: string): Map<string, number> => {
     return new Map(
       facets?.[columnId]?.rows?.map(({ value, total }) => [value, total]) || [],
     );

@@ -189,7 +189,7 @@ export const sheetFields = [
           {Object.entries(props.structuredData || {}).map(([sdId, kvPairs]) => (
             <div key={sdId} className="flex w-full flex-col gap-1">
               <div className="text-left text-sm font-medium">{sdId}</div>
-              <KVTabs data={kvPairs} className="-mt-[22px]" />
+              <KVTabs data={kvPairs} className="mt-[-22px]" />
             </div>
           ))}
         </div>

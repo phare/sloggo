@@ -25,14 +25,16 @@ RUN if [ "$DEBUG_SYMBOLS" = "true" ]; then \
 # Stage 2: Build the React frontend
 FROM node:22-trixie-slim AS frontend-builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable
 WORKDIR /app
 
-COPY frontend/pnpm-lock.yaml frontend/package.json ./
-RUN pnpm fetch --no-optional
+COPY frontend/pnpm-lock.yaml frontend/package.json frontend/pnpm-workspace.yaml ./
+# Install the pnpm version pinned by the `packageManager` field of package.json
+RUN corepack install
+RUN pnpm fetch
 
 COPY frontend/ .
-RUN pnpm install --offline --no-optional
+RUN pnpm install --offline
 RUN pnpm exec next telemetry disable
 RUN pnpm build
 

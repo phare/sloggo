@@ -26,7 +26,7 @@ export function DataTableToolbar({ renderActions }: DataTableToolbarProps) {
   const { table, isLoading, columnFilters } = useDataTable();
   const { open, setOpen } = useControls();
   useHotKey(() => setOpen((prev) => !prev), "b");
-  const filters = table.getState().columnFilters;
+  const filters = table.state.columnFilters;
 
   const rows = useMemo(
     () => ({

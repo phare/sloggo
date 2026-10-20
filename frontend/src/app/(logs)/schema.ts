@@ -14,7 +14,7 @@ export const columnSchema = z.object({
   procId: z.string(),
   msgId: z.string(),
   message: z.string(),
-  structuredData: z.record(z.record(z.string())).optional(),
+  structuredData: z.record(z.string(), z.record(z.string(), z.string())).optional(),
 });
 
 export type ColumnSchema = z.infer<typeof columnSchema>;
@@ -22,18 +22,20 @@ export type ColumnSchema = z.infer<typeof columnSchema>;
 export const columnFilterSchema = z.object({
   severity: z
     .string()
-    .transform((val) => val.split(ARRAY_DELIMITER))
-    .pipe(z.coerce.number().array())
+    .transform((val) => val.split(ARRAY_DELIMITER).map(Number))
+    .pipe(z.number().array())
     .optional(),
   facility: z
     .string()
-    .transform((val) => val.split(ARRAY_DELIMITER))
-    .pipe(z.coerce.number().array())
+    .transform((val) => val.split(ARRAY_DELIMITER).map(Number))
+    .pipe(z.number().array())
     .optional(),
   timestamp: z
     .string()
-    .transform((val) => val.split(RANGE_DELIMITER).map(Number))
-    .pipe(z.coerce.date().array())
+    .transform((val) =>
+      val.split(RANGE_DELIMITER).map((value) => new Date(Number(value))),
+    )
+    .pipe(z.date().array())
     .optional(),
   hostname: z.string().optional(),
   appName: z.string().optional(),

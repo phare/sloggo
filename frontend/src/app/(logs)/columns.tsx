@@ -5,11 +5,12 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { DataTableColumnSeverityIndicator } from "@/components/data-table/data-table-column/data-table-column-severity-indicator";
 import { SEVERITY_VALUES } from "@/constants/severity";
 import { FACILITY_NAMES } from "@/constants/facility";
+import type { DataTableFeatures } from "@/lib/table/features";
 import type { ColumnDef } from "@tanstack/react-table";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
 import type { ColumnSchema } from "./schema";
 
-export const columns: ColumnDef<ColumnSchema>[] = [
+export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
   {
     id: "severity",
     accessorKey: "severity",
@@ -36,9 +37,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     maxSize: 27,
     meta: {
       headerClassName:
-        "w-[--header-severity-size] max-w-[--header-severity-size] min-w-[--header-severity-size]",
+        "w-(--header-severity-size) max-w-(--header-severity-size) min-w-(--header-severity-size)",
       cellClassName:
-        "w-[--col-severity-size] max-w-[--col-severity-size] min-w-[--col-severity-size]",
+        "w-(--col-severity-size) max-w-(--col-severity-size) min-w-(--col-severity-size)",
     },
   },
   {
@@ -58,9 +59,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 200,
     meta: {
       headerClassName:
-        "w-[--header-timestamp-size] max-w-[--header-timestamp-size] min-w-[--header-timestamp-size]",
+        "w-(--header-timestamp-size) max-w-(--header-timestamp-size) min-w-(--header-timestamp-size)",
       cellClassName:
-        "font-mono w-[--col-timestamp-size] max-w-[--col-timestamp-size] min-w-[--col-timestamp-size]",
+        "font-mono w-(--col-timestamp-size) max-w-(--col-timestamp-size) min-w-(--col-timestamp-size)",
     },
   },
   {
@@ -81,9 +82,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 100,
     meta: {
       headerClassName:
-        "w-[--header-facility-size] max-w-[--header-facility-size] min-w-[--header-facility-size]",
+        "w-(--header-facility-size) max-w-(--header-facility-size) min-w-(--header-facility-size)",
       cellClassName:
-        "font-mono w-[--col-facility-size] max-w-[--col-facility-size] min-w-[--col-facility-size]",
+        "font-mono w-(--col-facility-size) max-w-(--col-facility-size) min-w-(--col-facility-size)",
     },
   },
   {
@@ -98,9 +99,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 125,
     meta: {
       cellClassName:
-        "font-mono w-[--col-hostname-size] max-w-[--col-hostname-size]",
+        "font-mono w-(--col-hostname-size) max-w-(--col-hostname-size)",
       headerClassName:
-        "min-w-[--header-hostname-size] w-[--header-hostname-size]",
+        "min-w-(--header-hostname-size) w-(--header-hostname-size)",
     },
   },
   {
@@ -115,9 +116,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 100,
     meta: {
       cellClassName:
-        "font-mono w-[--col-appname-size] max-w-[--col-appname-size]",
+        "font-mono w-(--col-appname-size) max-w-(--col-appname-size)",
       headerClassName:
-        "min-w-[--header-appname-size] w-[--header-appname-size]",
+        "min-w-(--header-appname-size) w-(--header-appname-size)",
     },
   },
   {
@@ -132,8 +133,8 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 80,
     meta: {
       cellClassName:
-        "font-mono w-[--col-procid-size] max-w-[--col-procid-size]",
-      headerClassName: "min-w-[--header-procid-size] w-[--header-procid-size]",
+        "font-mono w-(--col-procid-size) max-w-(--col-procid-size)",
+      headerClassName: "min-w-(--header-procid-size) w-(--header-procid-size)",
     },
   },
   {
@@ -147,8 +148,8 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     size: 80,
     minSize: 80,
     meta: {
-      cellClassName: "font-mono w-[--col-msgid-size] max-w-[--col-msgid-size]",
-      headerClassName: "min-w-[--header-msgid-size] w-[--header-msgid-size]",
+      cellClassName: "font-mono w-(--col-msgid-size) max-w-(--col-msgid-size)",
+      headerClassName: "min-w-(--header-msgid-size) w-(--header-msgid-size)",
     },
   },
   {
@@ -162,9 +163,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 200,
     meta: {
       cellClassName:
-        "font-mono w-[--col-message-size] max-w-[--col-message-size]",
+        "font-mono w-(--col-message-size) max-w-(--col-message-size)",
       headerClassName:
-        "min-w-[--header-message-size] w-[--header-message-size]",
+        "min-w-(--header-message-size) w-(--header-message-size)",
     },
   },
   {
@@ -193,9 +194,9 @@ export const columns: ColumnDef<ColumnSchema>[] = [
     minSize: 150,
     meta: {
       cellClassName:
-        "font-mono w-[--col-structureddata-size] max-w-[--col-structureddata-size]",
+        "font-mono w-(--col-structureddata-size) max-w-(--col-structureddata-size)",
       headerClassName:
-        "min-w-[--header-structureddata-size] w-[--header-structureddata-size]",
+        "min-w-(--header-structureddata-size) w-(--header-structureddata-size)",
     },
   },
 ];

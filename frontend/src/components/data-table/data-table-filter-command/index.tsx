@@ -45,7 +45,7 @@ export function DataTableFilterCommand({
     filterFields: _filterFields,
     getFacetedUniqueValues,
   } = useDataTable();
-  const columnFilters = table.getState().columnFilters;
+  const columnFilters = table.state.columnFilters;
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState<boolean>(false);
   const [currentWord, setCurrentWord] = useState<string>("");
@@ -77,7 +77,7 @@ export function DataTableFilterCommand({
 
     const searchParams = columnParser.parse(inputValue);
 
-    const currentFilters = table.getState().columnFilters;
+    const currentFilters = table.state.columnFilters;
     const currentEnabledFilters = currentFilters.filter((filter) => {
       const field = _filterFields?.find((field) => field.value === filter.id);
       return !field?.commandDisabled;
@@ -129,7 +129,7 @@ export function DataTableFilterCommand({
       <button
         type="button"
         className={cn(
-          "group flex w-full items-center rounded-lg border border-input bg-background px-3 text-muted-foreground ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 hover:bg-accent/50 hover:text-accent-foreground",
+          "group flex w-full items-center rounded-lg border border-input bg-background px-3 text-muted-foreground ring-offset-background focus-within:outline-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 hover:bg-accent/50 hover:text-accent-foreground",
           open ? "hidden" : "visible",
         )}
         onClick={() => setOpen(true)}
@@ -139,7 +139,7 @@ export function DataTableFilterCommand({
         ) : (
           <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground opacity-50 group-hover:text-popover-foreground" />
         )}
-        <span className="h-11 w-full max-w-sm truncate py-3 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 md:max-w-xl lg:max-w-4xl xl:max-w-5xl">
+        <span className="h-11 w-full max-w-sm truncate py-3 text-left text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50 md:max-w-xl lg:max-w-4xl xl:max-w-5xl">
           {inputValue.trim() ? (
             <span className="text-foreground">{inputValue}</span>
           ) : (
@@ -197,7 +197,7 @@ export function DataTableFilterCommand({
           className="text-foreground"
         />
         <div className="relative">
-          <div className="absolute top-2 z-10 w-full overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md outline-none animate-in">
+          <div className="absolute top-2 z-10 w-full overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md outline-hidden animate-in">
             {/* default height is 300px but in case of more, we'd like to tease the user */}
             <CommandList className="max-h-[310px]">
               <CommandGroup heading="Filter">
@@ -308,7 +308,7 @@ export function DataTableFilterCommand({
                         className="group"
                       >
                         {item.search}
-                        <span className="ml-auto truncate text-muted-foreground/80 group-aria-[selected=true]:block">
+                        <span className="ml-auto truncate text-muted-foreground/80 group-aria-selected:block">
                           {formatDistanceToNow(item.timestamp, {
                             addSuffix: true,
                           })}
@@ -329,7 +329,7 @@ export function DataTableFilterCommand({
                               ),
                             );
                           }}
-                          className="ml-1 hidden rounded-md p-0.5 hover:bg-background group-aria-[selected=true]:block"
+                          className="ml-1 hidden rounded-md p-0.5 hover:bg-background group-aria-selected:block"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -396,7 +396,7 @@ function CommandItemSuggestions<TData>({
   switch (field.type) {
     case "checkbox": {
       return (
-        <span className="ml-1 hidden truncate text-muted-foreground/80 group-aria-[selected=true]:block">
+        <span className="ml-1 hidden truncate text-muted-foreground/80 group-aria-selected:block">
           {getFacetedUniqueValues
             ? Array.from(getFacetedUniqueValues(table, value)?.keys() || [])
                 .map((value) => `[${value}]`)
@@ -411,14 +411,14 @@ function CommandItemSuggestions<TData>({
         field.max,
       ];
       return (
-        <span className="ml-1 hidden truncate text-muted-foreground/80 group-aria-[selected=true]:block">
+        <span className="ml-1 hidden truncate text-muted-foreground/80 group-aria-selected:block">
           [{min} - {max}]
         </span>
       );
     }
     case "input": {
       return (
-        <span className="ml-1 hidden truncate text-muted-foreground/80 group-aria-[selected=true]:block">
+        <span className="ml-1 hidden truncate text-muted-foreground/80 group-aria-selected:block">
           [{`${String(field.value)}`} input]
         </span>
       );
