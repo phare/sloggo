@@ -481,7 +481,16 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 			query := fmt.Sprintf("SELECT %s as value, COUNT(*) as total FROM logs", fc.column)
 			args := []any{}
 
-			whereClause := buildWhereClause(facetFilters, nil, "", "", "", &args)
+			// Exclude the facet's own filter so its other values remain
+			// selectable once one of them is checked
+			columnFilters := make(map[string]any, len(facetFilters))
+			for k, v := range facetFilters {
+				if k != fc.key {
+					columnFilters[k] = v
+				}
+			}
+
+			whereClause := buildWhereClause(columnFilters, nil, "", "", "", &args)
 			if whereClause != "" {
 				query += " WHERE " + whereClause
 			}

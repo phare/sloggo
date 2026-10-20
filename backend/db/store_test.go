@@ -163,7 +163,7 @@ func TestBatchProcessing(t *testing.T) {
 }
 
 // TestGetFacetsIncludesTextColumns verifies that text columns are exposed as
-// facets and that the facet query honours the active filters.
+// facets, and that each facet honours the active filters except its own.
 func TestGetFacetsIncludesTextColumns(t *testing.T) {
 	const hostname = "facets-host"
 	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
@@ -185,6 +185,21 @@ func TestGetFacetsIncludesTextColumns(t *testing.T) {
 			t.Fatalf("Failed to store log entry: %v", err)
 		}
 	}
+	err := StoreLog(models.LogEntry{
+		Severity:       6,
+		Facility:       1,
+		Version:        1,
+		Timestamp:      timestamp,
+		Hostname:       "facets-other-host",
+		AppName:        "facets-app-other",
+		ProcID:         "4243",
+		MsgID:          "facets-msg",
+		StructuredData: "-",
+		Message:        "facets message other",
+	})
+	if err != nil {
+		t.Fatalf("Failed to store log entry: %v", err)
+	}
 	if err := ProcessBatchStoreLogs(); err != nil {
 		t.Fatalf("Failed to process batch: %v", err)
 	}
@@ -200,9 +215,20 @@ func TestGetFacetsIncludesTextColumns(t *testing.T) {
 		}
 	}
 
-	hostnameRows := facets["hostname"].Rows
-	if len(hostnameRows) != 1 || hostnameRows[0].Value != hostname || hostnameRows[0].Total != 3 {
-		t.Errorf("unexpected hostname facet rows: %+v", hostnameRows)
+	// The hostname facet ignores the hostname filter, so other hosts can still
+	// be selected
+	hostnameTotals := map[any]int{}
+	for _, row := range facets["hostname"].Rows {
+		hostnameTotals[row.Value] = row.Total
+	}
+	if hostnameTotals[hostname] != 3 || hostnameTotals["facets-other-host"] != 1 {
+		t.Errorf("unexpected hostname facet rows: %+v", facets["hostname"].Rows)
+	}
+
+	// Other facets honour the hostname filter
+	appNameRows := facets["appName"].Rows
+	if len(appNameRows) != 2 {
+		t.Errorf("unexpected appName facet rows: %+v", appNameRows)
 	}
 
 	// Numeric-looking text values must stay strings to match the row values
