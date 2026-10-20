@@ -4,38 +4,11 @@ import { TextWithTooltip } from "@/components/custom/text-with-tooltip";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { DataTableColumnSeverityIndicator } from "@/components/data-table/data-table-column/data-table-column-severity-indicator";
 import { SEVERITY_VALUES } from "@/constants/severity";
+import { FACILITY_NAMES } from "@/constants/facility";
 import type { DataTableFeatures } from "@/lib/table/features";
 import type { ColumnDef } from "@tanstack/react-table";
 import { HoverCardTimestamp } from "./_components/hover-card-timestamp";
 import type { ColumnSchema } from "./schema";
-
-// Facility names for display
-const FACILITY_NAMES = [
-  "Kernel",
-  "User",
-  "Mail",
-  "Daemon",
-  "Auth",
-  "Syslog",
-  "LPR",
-  "News",
-  "UUCP",
-  "Cron",
-  "AuthPriv",
-  "FTP",
-  "NTP",
-  "Audit",
-  "Alert",
-  "Clock",
-  "Local0",
-  "Local1",
-  "Local2",
-  "Local3",
-  "Local4",
-  "Local5",
-  "Local6",
-  "Local7",
-];
 
 export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
   {
@@ -121,6 +94,7 @@ export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
       const value = row.getValue<ColumnSchema["hostname"]>("hostname");
       return <TextWithTooltip text={value} />;
     },
+    filterFn: "arrSome",
     size: 125,
     minSize: 125,
     meta: {
@@ -137,6 +111,7 @@ export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
       const value = row.getValue<ColumnSchema["appName"]>("appName");
       return <TextWithTooltip text={value} />;
     },
+    filterFn: "arrSome",
     size: 100,
     minSize: 100,
     meta: {
@@ -153,6 +128,7 @@ export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
       const value = row.getValue<ColumnSchema["procId"]>("procId");
       return <span className="font-mono">{value}</span>;
     },
+    filterFn: "arrSome",
     size: 80,
     minSize: 80,
     meta: {
@@ -168,6 +144,7 @@ export const columns: ColumnDef<DataTableFeatures, ColumnSchema>[] = [
       const value = row.getValue<ColumnSchema["msgId"]>("msgId");
       return <span className="font-mono">{value}</span>;
     },
+    filterFn: "arrSome",
     size: 80,
     minSize: 80,
     meta: {

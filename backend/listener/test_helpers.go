@@ -197,5 +197,20 @@ func getTestCases() []testCase {
 				shouldError:    false,
 			},
 		},
+		{
+			name:    "RFC3164 esphome with nil timestamp (clock not yet valid)",
+			message: "<135>- modbus-ble-bridge modbus_ble_bridge: [D][modbus_ble_bridge:286]: send_ble_request invoked, size=13",
+			expected: expectedResult{
+				facility:       16,
+				severity:       7,
+				hostname:       "modbus-ble-bridge",
+				appName:        "modbus_ble_bridge",
+				procid:         "-",
+				msgid:          "-",
+				structuredData: "-",
+				msg:            "[D][modbus_ble_bridge:286]: send_ble_request invoked, size=13",
+				shouldError:    false,
+			},
+		},
 	}
 }

@@ -23,15 +23,13 @@ export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
 export type InfiniteQueryResponse<TData, TMeta = unknown> = {
   data: TData;
   meta: InfiniteQueryMeta<TMeta>;
-  prevCursor: number | null;
-  nextCursor: number | null;
+  prevCursor: string | null;
+  nextCursor: string | null;
 };
 
-// Helper to get a cursor that ensures data will be returned
-// For initial load, we use a time in the future to load the most recent logs
-const getInitialCursor = () => {
-  // Set cursor to 1 minute in the future to ensure we get the most recent logs on initial load
-  return new Date(Date.now() + 1 * 60 * 1000).getTime();
+export type LogsPageParam = {
+  cursor: string | null;
+  direction: "next" | "prev";
 };
 
 export const dataOptions = (search: SearchParamsType) => {
@@ -44,8 +42,7 @@ export const dataOptions = (search: SearchParamsType) => {
     queryKey: ["data-table", searchParamsSerializer(stableKey)], // remove id/live/cursor as they would otherwise retrigger a fetch
     refetchOnMount: false, // Prevent refetch on component mount
     queryFn: async ({ pageParam }) => {
-      // Ensure cursor is a valid date
-      const cursor = pageParam.cursor ? new Date(pageParam.cursor) : new Date();
+      const cursor = pageParam.cursor;
       const direction = pageParam.direction as "next" | "prev" | undefined;
       const serialize = searchParamsSerializer({
         ...search,
@@ -76,8 +73,8 @@ export const dataOptions = (search: SearchParamsType) => {
 
       return json as InfiniteQueryResponse<ColumnSchema[], SyslogMeta>;
     },
-    initialPageParam: { cursor: Date.now(), direction: "next" },
-    getPreviousPageParam: (firstPage, pages) => {
+    initialPageParam: { cursor: null, direction: "next" } as LogsPageParam,
+    getPreviousPageParam: (firstPage, pages): LogsPageParam | null => {
       if (firstPage.prevCursor) {
         return { cursor: firstPage.prevCursor, direction: "prev" };
       }
@@ -89,7 +86,7 @@ export const dataOptions = (search: SearchParamsType) => {
       }
       return null;
     },
-    getNextPageParam: (lastPage, _pages) => {
+    getNextPageParam: (lastPage, _pages): LogsPageParam | null => {
       // For next page, use the next cursor or null if it doesn't exist
       if (!lastPage.nextCursor) return null;
       return { cursor: lastPage.nextCursor, direction: "next" };

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"sloggo/models"
 	"testing"
 	"time"
@@ -158,5 +159,158 @@ func TestBatchProcessing(t *testing.T) {
 
 	if count < len(entries) {
 		t.Errorf("Expected at least %d entries in database, got %d", len(entries), count)
+	}
+}
+
+// TestGetFacetsIncludesTextColumns verifies that text columns are exposed as
+// facets, and that each facet honours the active filters except its own.
+func TestGetFacetsIncludesTextColumns(t *testing.T) {
+	const hostname = "facets-host"
+	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+
+	for i := 0; i < 3; i++ {
+		err := StoreLog(models.LogEntry{
+			Severity:       6,
+			Facility:       1,
+			Version:        1,
+			Timestamp:      timestamp,
+			Hostname:       hostname,
+			AppName:        fmt.Sprintf("facets-app-%d", i%2),
+			ProcID:         "4242",
+			MsgID:          "facets-msg",
+			StructuredData: "-",
+			Message:        fmt.Sprintf("facets message %d", i),
+		})
+		if err != nil {
+			t.Fatalf("Failed to store log entry: %v", err)
+		}
+	}
+	err := StoreLog(models.LogEntry{
+		Severity:       6,
+		Facility:       1,
+		Version:        1,
+		Timestamp:      timestamp,
+		Hostname:       "facets-other-host",
+		AppName:        "facets-app-other",
+		ProcID:         "4243",
+		MsgID:          "facets-msg",
+		StructuredData: "-",
+		Message:        "facets message other",
+	})
+	if err != nil {
+		t.Fatalf("Failed to store log entry: %v", err)
+	}
+	if err := ProcessBatchStoreLogs(); err != nil {
+		t.Fatalf("Failed to process batch: %v", err)
+	}
+
+	facets, err := GetFacets(map[string]any{"hostname": []string{hostname}})
+	if err != nil {
+		t.Fatalf("GetFacets failed: %v", err)
+	}
+
+	for _, key := range []string{"hostname", "appName", "procId", "msgId"} {
+		if _, ok := facets[key]; !ok {
+			t.Errorf("missing facet %q", key)
+		}
+	}
+
+	// The hostname facet ignores the hostname filter, so other hosts can still
+	// be selected
+	hostnameTotals := map[any]int{}
+	for _, row := range facets["hostname"].Rows {
+		hostnameTotals[row.Value] = row.Total
+	}
+	if hostnameTotals[hostname] != 3 || hostnameTotals["facets-other-host"] != 1 {
+		t.Errorf("unexpected hostname facet rows: %+v", facets["hostname"].Rows)
+	}
+
+	// Other facets honour the hostname filter
+	appNameRows := facets["appName"].Rows
+	if len(appNameRows) != 2 {
+		t.Errorf("unexpected appName facet rows: %+v", appNameRows)
+	}
+
+	// Numeric-looking text values must stay strings to match the row values
+	procIDRows := facets["procId"].Rows
+	if len(procIDRows) != 1 || procIDRows[0].Value != "4242" {
+		t.Errorf("unexpected procId facet rows: %+v", procIDRows)
+	}
+}
+
+// TestGetLogsPaginationWithDuplicateTimestamps verifies that keyset pagination
+// returns every row exactly once when all rows share the same timestamp. The
+// timestamp has sub-millisecond precision, as RFC 5424 timestamps can.
+func TestGetLogsPaginationWithDuplicateTimestamps(t *testing.T) {
+	const (
+		hostname = "pagination-dup-host"
+		total    = 25
+		pageSize = 10
+	)
+	timestamp := time.Now().Add(-time.Hour).UTC().Truncate(time.Second).Add(123456 * time.Microsecond)
+
+	for i := 0; i < total; i++ {
+		err := StoreLog(models.LogEntry{
+			Severity:       6,
+			Facility:       1,
+			Version:        1,
+			Timestamp:      timestamp,
+			Hostname:       hostname,
+			AppName:        "pagination-app",
+			ProcID:         "-",
+			MsgID:          "-",
+			StructuredData: "-",
+			Message:        fmt.Sprintf("pagination message %d", i),
+		})
+		if err != nil {
+			t.Fatalf("Failed to store log entry: %v", err)
+		}
+	}
+	if err := ProcessBatchStoreLogs(); err != nil {
+		t.Fatalf("Failed to process batch: %v", err)
+	}
+
+	filters := map[string]any{"hostname": hostname}
+
+	for _, sortOrder := range []string{"DESC", "ASC"} {
+		t.Run(sortOrder, func(t *testing.T) {
+			seen := make(map[int64]bool, total)
+			var cursor *Cursor
+			pages := 0
+
+			for {
+				logs, _, filterCount, nextCursor, _, err := GetLogs(pageSize, cursor, "next", filters, "timestamp", sortOrder)
+				if err != nil {
+					t.Fatalf("GetLogs failed: %v", err)
+				}
+				if filterCount != total {
+					t.Fatalf("filterCount = %d, want %d", filterCount, total)
+				}
+				for _, entry := range logs {
+					if seen[entry.RowID] {
+						t.Fatalf("row %d returned more than once", entry.RowID)
+					}
+					seen[entry.RowID] = true
+				}
+
+				pages++
+				if nextCursor == nil {
+					break
+				}
+				parsed, ok := ParseCursor(*nextCursor)
+				if !ok {
+					t.Fatalf("invalid cursor %q", *nextCursor)
+				}
+				cursor = &parsed
+
+				if pages > total {
+					t.Fatal("pagination did not terminate")
+				}
+			}
+
+			if len(seen) != total {
+				t.Fatalf("returned %d unique rows, want %d", len(seen), total)
+			}
+		})
 	}
 }

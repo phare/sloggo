@@ -7,6 +7,7 @@ import type {
   Option,
   SheetField,
 } from "@/components/data-table/types";
+import { FACILITY_NAMES } from "@/constants/facility";
 import { SEVERITY_LABELS, SEVERITY_VALUES } from "@/constants/severity";
 import { getSeverityColor } from "@/lib/request/severity";
 import { cn } from "@/lib/utils";
@@ -14,33 +15,11 @@ import { format } from "date-fns";
 import type { SyslogMeta } from "./query-options";
 import { type ColumnSchema } from "./schema";
 
-// Syslog facility names
-const SYSLOG_FACILITIES = [
-  { label: "Kernel messages", value: 0 },
-  { label: "User-level messages", value: 1 },
-  { label: "Mail system", value: 2 },
-  { label: "System daemons", value: 3 },
-  { label: "Security/authorization messages", value: 4 },
-  { label: "Messages generated internally by syslogd", value: 5 },
-  { label: "Line printer subsystem", value: 6 },
-  { label: "Network news subsystem", value: 7 },
-  { label: "UUCP subsystem", value: 8 },
-  { label: "Clock daemon", value: 9 },
-  { label: "Security/authorization messages", value: 10 },
-  { label: "FTP daemon", value: 11 },
-  { label: "NTP subsystem", value: 12 },
-  { label: "Log audit", value: 13 },
-  { label: "Log alert", value: 14 },
-  { label: "Clock daemon", value: 15 },
-  { label: "Local use 0", value: 16 },
-  { label: "Local use 1", value: 17 },
-  { label: "Local use 2", value: 18 },
-  { label: "Local use 3", value: 19 },
-  { label: "Local use 4", value: 20 },
-  { label: "Local use 5", value: 21 },
-  { label: "Local use 6", value: 22 },
-  { label: "Local use 7", value: 23 },
-];
+// Syslog facilities, ordered by their numeric code
+const SYSLOG_FACILITIES = FACILITY_NAMES.map((label, value) => ({
+  label,
+  value,
+}));
 
 export const filterFields = [
   {
@@ -90,22 +69,22 @@ export const filterFields = [
   {
     label: "Hostname",
     value: "hostname",
-    type: "input",
+    type: "checkbox",
   },
   {
     label: "App Name",
     value: "appName",
-    type: "input",
+    type: "checkbox",
   },
   {
     label: "Proc ID",
     value: "procId",
-    type: "input",
+    type: "checkbox",
   },
   {
     label: "Msg ID",
     value: "msgId",
-    type: "input",
+    type: "checkbox",
   },
 ] satisfies DataTableFilterField<ColumnSchema>[];
 
