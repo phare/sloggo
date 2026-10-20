@@ -133,3 +133,59 @@ func TestParseRFC3164ToLogEntry_InvalidTimestamp(t *testing.T) {
 		t.Error("expected error for invalid timestamp, got nil")
 	}
 }
+
+func TestParseRFC3164ToLogEntry_NilTimestamp(t *testing.T) {
+	// ESPHome sends a bare "-" in place of the timestamp when its clock is
+	// not yet valid. The entry must still parse, using the reception time.
+	before := time.Now()
+	line := "<135>- modbus-ble-bridge modbus_ble_bridge: [D][modbus_ble_bridge:286]: send_ble_request invoked, size=13"
+	entry, err := ParseRFC3164ToLogEntry(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.Facility != 16 || entry.Severity != 7 { // 135 / 8 = 16, 135 % 8 = 7
+		t.Errorf("facility/severity mismatch: got (%d,%d)", entry.Facility, entry.Severity)
+	}
+	if entry.Hostname != "modbus-ble-bridge" {
+		t.Errorf("hostname: got %q", entry.Hostname)
+	}
+	if entry.AppName != "modbus_ble_bridge" {
+		t.Errorf("appname: got %q", entry.AppName)
+	}
+	if entry.ProcID != "-" {
+		t.Errorf("procid: got %q", entry.ProcID)
+	}
+	expectedMsg := "[D][modbus_ble_bridge:286]: send_ble_request invoked, size=13"
+	if entry.Message != expectedMsg {
+		t.Errorf("message: got %q want %q", entry.Message, expectedMsg)
+	}
+	after := time.Now()
+	if entry.Timestamp.Before(before.Add(-time.Second)) || entry.Timestamp.After(after.Add(time.Second)) {
+		t.Errorf("timestamp should fall back to reception time, got %v", entry.Timestamp)
+	}
+}
+
+func TestParseRFC3164ToLogEntry_OmittedTimestamp(t *testing.T) {
+	// Newer ESPHome versions omit the timestamp entirely when the clock is
+	// not valid, leaving a single separating space after the PRI.
+	before := time.Now()
+	line := "<135> modbus-ble-bridge modbus_ble_bridge: [D][modbus_ble_bridge:286]: send_ble_request invoked, size=13"
+	entry, err := ParseRFC3164ToLogEntry(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.Hostname != "modbus-ble-bridge" {
+		t.Errorf("hostname: got %q", entry.Hostname)
+	}
+	if entry.AppName != "modbus_ble_bridge" {
+		t.Errorf("appname: got %q", entry.AppName)
+	}
+	expectedMsg := "[D][modbus_ble_bridge:286]: send_ble_request invoked, size=13"
+	if entry.Message != expectedMsg {
+		t.Errorf("message: got %q want %q", entry.Message, expectedMsg)
+	}
+	after := time.Now()
+	if entry.Timestamp.Before(before.Add(-time.Second)) || entry.Timestamp.After(after.Add(time.Second)) {
+		t.Errorf("timestamp should fall back to reception time, got %v", entry.Timestamp)
+	}
+}
