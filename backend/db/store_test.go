@@ -176,7 +176,7 @@ func TestGetFacetsIncludesTextColumns(t *testing.T) {
 			Timestamp:      timestamp,
 			Hostname:       hostname,
 			AppName:        fmt.Sprintf("facets-app-%d", i%2),
-			ProcID:         "facets-proc",
+			ProcID:         "4242",
 			MsgID:          "facets-msg",
 			StructuredData: "-",
 			Message:        fmt.Sprintf("facets message %d", i),
@@ -203,6 +203,12 @@ func TestGetFacetsIncludesTextColumns(t *testing.T) {
 	hostnameRows := facets["hostname"].Rows
 	if len(hostnameRows) != 1 || hostnameRows[0].Value != hostname || hostnameRows[0].Total != 3 {
 		t.Errorf("unexpected hostname facet rows: %+v", hostnameRows)
+	}
+
+	// Numeric-looking text values must stay strings to match the row values
+	procIDRows := facets["procId"].Rows
+	if len(procIDRows) != 1 || procIDRows[0].Value != "4242" {
+		t.Errorf("unexpected procId facet rows: %+v", procIDRows)
 	}
 }
 

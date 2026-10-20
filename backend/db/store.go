@@ -438,16 +438,19 @@ func GetLogs(limit int, cursor *Cursor, direction string, filters map[string]any
 }
 
 // facetColumn describes a column exposed as a filter facet. maxValues limits
-// the number of distinct values returned for high-cardinality columns.
+// the number of distinct values returned for high-cardinality columns. numeric
+// marks integer columns, whose values are returned as numbers instead of
+// strings.
 type facetColumn struct {
 	key       string
 	column    string
 	maxValues int
+	numeric   bool
 }
 
 var facetColumns = []facetColumn{
-	{key: "severity", column: "severity"},
-	{key: "facility", column: "facility"},
+	{key: "severity", column: "severity", numeric: true},
+	{key: "facility", column: "facility", numeric: true},
 	{key: "hostname", column: "hostname", maxValues: 100},
 	{key: "appName", column: "app_name", maxValues: 100},
 	{key: "procId", column: "procid", maxValues: 100},
@@ -509,11 +512,13 @@ func GetFacets(filters map[string]any) (map[string]FacetMetadata, error) {
 					return
 				}
 
-				// Try to convert to integer if possible
-				if intVal, err := strconv.Atoi(valueStr); err == nil {
-					row.Value = intVal
-				} else {
-					row.Value = valueStr
+				// Text values stay strings even when they look numeric (e.g.
+				// a procId), so they match the row values in the frontend
+				row.Value = valueStr
+				if fc.numeric {
+					if intVal, err := strconv.Atoi(valueStr); err == nil {
+						row.Value = intVal
+					}
 				}
 
 				facetRows = append(facetRows, row)
