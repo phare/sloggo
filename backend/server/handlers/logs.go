@@ -17,8 +17,8 @@ import (
 type LogsResponse struct {
 	Data       []models.LogEntry `json:"data"`
 	Meta       InfiniteQueryMeta `json:"meta"`
-	NextCursor *int64            `json:"nextCursor"`
-	PrevCursor *int64            `json:"prevCursor"`
+	NextCursor *string           `json:"nextCursor"`
+	PrevCursor *string           `json:"prevCursor"`
 }
 
 // InfiniteQueryMeta contains metadata for infinite scrolling
@@ -125,25 +125,13 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse cursor (timestamp) for pagination
-	var cursor time.Time
-	now := time.Now().UTC().Add(1 * time.Minute) // Allow for clock skew
-
+	// Parse cursor for keyset pagination. It is opaque; an absent or invalid
+	// cursor starts from the most recent rows.
+	var cursor *db.Cursor
 	if cursorStr := query.Get("cursor"); cursorStr != "" {
-		if parsedCursor, err := strconv.ParseInt(cursorStr, 10, 64); err == nil {
-			cursorTime := time.Unix(0, parsedCursor*int64(time.Millisecond))
-			if cursorTime.After(now) {
-				cursor = now
-			} else {
-				cursor = cursorTime
-			}
-		} else {
-			// Use current time if parsing fails
-			cursor = now
+		if parsed, ok := db.ParseCursor(cursorStr); ok {
+			cursor = &parsed
 		}
-	} else {
-		// Default to current time if no cursor provided
-		cursor = now
 	}
 
 	// Date range filter
@@ -182,6 +170,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	var totalCount, filterCount int
 	var facets map[string]db.FacetMetadata
 	var chartData []db.ChartDataPoint
+	var nextCursor, prevCursor *string
 	var logsErr, facetsErr, chartErr error
 
 	wg.Add(3)
@@ -192,7 +181,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get logs from database
 	go func() {
 		defer wg.Done()
-		logs, totalCount, filterCount, logsErr = db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
+		logs, totalCount, filterCount, nextCursor, prevCursor, logsErr = db.GetLogs(size, cursor, direction, filters, sortField, sortOrder)
 
 		if utils.Debug {
 			log.Printf("⚡ GetLogs execution time: %v", time.Since(queryStartTime))
@@ -212,7 +201,7 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get chart data
 	go func() {
 		defer wg.Done()
-		chartData, chartErr = db.GetChartData(cursor, filters)
+		chartData, chartErr = db.GetChartData(time.Now(), filters)
 
 		if utils.Debug {
 			log.Printf("⚡️ GetChartData execution time: %v", time.Since(queryStartTime))
@@ -269,15 +258,6 @@ func LogsHandler(w http.ResponseWriter, r *http.Request) {
 	if utils.Debug {
 		log.Printf("⚡️ Log processing time: %v", time.Since(processStartTime))
 	}
-	// Determine next and previous cursors
-	var nextCursor, prevCursor *int64 = nil, nil
-	if len(logs) > 0 {
-		nextVal := logs[len(logs)-1].Timestamp.UnixNano() / int64(time.Millisecond)
-		prevVal := logs[0].Timestamp.UnixNano() / int64(time.Millisecond)
-		nextCursor = &nextVal
-		prevCursor = &prevVal
-	}
-
 	// Prepare the response
 	prepareResponseStartTime := time.Now()
 	response := LogsResponse{
