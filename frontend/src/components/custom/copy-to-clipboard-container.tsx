@@ -67,7 +67,7 @@ export const CopyToClipboardContainer = React.forwardRef<
         className={cn(
           containerVariants({ variant }),
           collapsible && !open
-            ? "max-h-[var(--max-height)] overflow-hidden"
+            ? "max-h-(--max-height) overflow-hidden"
             : undefined,
           className,
         )}
@@ -91,7 +91,7 @@ export const CopyToClipboardContainer = React.forwardRef<
         )}
       </Button>
       {collapsible && !open ? (
-        <div className="absolute inset-x-px bottom-px flex items-center justify-center rounded-b-md bg-gradient-to-b from-background/0 to-background/100">
+        <div className="absolute inset-x-px bottom-px flex items-center justify-center rounded-b-md bg-linear-to-b from-background/0 to-background">
           <Button
             variant="outline"
             size="sm"

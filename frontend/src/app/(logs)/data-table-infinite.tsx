@@ -328,7 +328,7 @@ export function DataTableInfinite<TData extends RowData, TMeta>({
           className={cn(
             "flex max-w-full flex-1 flex-col border-border sm:border-l",
             // Chrome issue
-            "group-data-[expanded=true]/controls:sm:max-w-[calc(100vw_-_208px)] group-data-[expanded=true]/controls:md:max-w-[calc(100vw_-_288px)]",
+            "sm:group-data-[expanded=true]/controls:max-w-[calc(100vw-208px)] md:group-data-[expanded=true]/controls:max-w-[calc(100vw-288px)]",
           )}
         >
           <div
@@ -364,7 +364,7 @@ export function DataTableInfinite<TData extends RowData, TMeta>({
               onScroll={onScroll}
               // REMINDER: https://stackoverflow.com/questions/50361698/border-style-do-not-work-with-sticky-position-element
               className="border-separate border-spacing-0"
-              containerClassName="max-h-[calc(100vh_-_var(--top-bar-height))]"
+              containerClassName="max-h-[calc(100vh-var(--top-bar-height))]"
             >
               <TableHeader className={cn("sticky top-0 z-20 bg-background")}>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -372,7 +372,7 @@ export function DataTableInfinite<TData extends RowData, TMeta>({
                     key={headerGroup.id}
                     className={cn(
                       "bg-muted/50 hover:bg-muted/50",
-                      "[&>*]:border-t [&>:not(:last-child)]:border-r",
+                      "*:border-t [&>:not(:last-child)]:border-r",
                     )}
                   >
                     {headerGroup.headers.map((header) => {
@@ -380,7 +380,7 @@ export function DataTableInfinite<TData extends RowData, TMeta>({
                         <TableHead
                           key={header.id}
                           className={cn(
-                            "relative select-none truncate border-b border-border [&>.cursor-col-resize]:last:opacity-0",
+                            "relative select-none truncate border-b border-border last:[&>.cursor-col-resize]:opacity-0",
                             header.column.columnDef.meta?.headerClassName,
                           )}
                           aria-sort={
@@ -417,7 +417,7 @@ export function DataTableInfinite<TData extends RowData, TMeta>({
               <TableBody
                 id="content"
                 tabIndex={-1}
-                className="outline-1 -outline-offset-1 outline-primary transition-colors focus-visible:outline"
+                className="-outline-offset-1 outline-primary transition-colors focus-visible:outline-1"
                 // REMINDER: avoids scroll (skipping the table header) when using skip to content
                 style={{
                   scrollMarginTop: "calc(var(--top-bar-height) + 40px)",
@@ -539,7 +539,7 @@ function Row<TData extends RowData>({
       }}
       className={cn(
         "[&>:not(:last-child)]:border-r",
-        "outline-1 -outline-offset-1 outline-primary transition-colors focus-visible:bg-muted/50 focus-visible:outline data-[state=selected]:outline",
+        "-outline-offset-1 outline-primary transition-colors focus-visible:bg-muted/50 focus-visible:outline-1 data-[state=selected]:outline-1",
         table.options.meta?.getRowClassName?.(row),
       )}
     >

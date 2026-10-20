@@ -142,4 +142,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* REMINDER: Tailwind CSS v4 no longer sets a pointer cursor on buttons - keep the v3 behavior */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }

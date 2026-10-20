@@ -21,7 +21,7 @@ const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(
       <NextLink
         className={cn(
           "group text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground",
-          "ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md",
+          "ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md",
           className
         )}
         ref={ref}

@@ -153,7 +153,7 @@ export function DataTableSheetRowAction<
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "rounded-md ring-offset-background focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
           "relative",
           className
         )}

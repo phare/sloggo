@@ -5,7 +5,7 @@ import { columns } from "../columns";
 export function LiveRow() {
   return (
     <TableRow>
-      <TableCell className="w-[--header-severity-size] min-w-[--header-severity-size] max-w-[--header-severity-size] border-b border-l border-r border-t border-info border-r-info/50">
+      <TableCell className="w-(--header-severity-size) min-w-(--header-severity-size) max-w-(--header-severity-size) border-b border-l border-r border-t border-info border-r-info/50">
         <DataTableColumnSeverityIndicator value="info" />
       </TableCell>
       <TableCell

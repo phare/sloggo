@@ -48,7 +48,7 @@ function RowAction({
       </TableCell>
       <TableCell className="relative py-1 font-mono">
         {value}
-        <div className="invisible absolute right-1.5 top-1.5 rounded-sm border border-border bg-background p-0.5 backdrop-blur-sm group-hover:visible">
+        <div className="invisible absolute right-1.5 top-1.5 rounded-sm border border-border bg-background p-0.5 backdrop-blur-xs group-hover:visible">
           {!isCopied ? (
             <Copy className="h-3 w-3" />
           ) : (
